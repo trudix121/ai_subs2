@@ -4,3 +4,4 @@ Lib
 Scripts
 subs
 .env
+__pycache__

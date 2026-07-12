@@ -5,4 +5,5 @@ import os
 load_dotenv()
 
 if __name__ == '__main__':
-    serve(app, host="0.0.0.0", port=os.getenv('PORT'))
+    print('server running')
+    serve(app, host=os.getenv('HOST_NAME'), port=os.getenv('PORT'))
