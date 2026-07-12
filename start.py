@@ -4,4 +4,5 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-serve(app, host="0.0.0.0", port=os.getenv('PORT'))
+if __name__ == '__main__':
+    serve(app, host="0.0.0.0", port=os.getenv('PORT'))
