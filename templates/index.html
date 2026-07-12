@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Căutare titlu — IMDb ID</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&family=Work+Sans:wght@400;500;600&display=swap');
+
+  :root{
+    --ink:#171418;
+    --ink-2:#211c22;
+    --paper:#f2ece1;
+    --paper-dim:#c9c0ae;
+    --marquee:#e8b94d;
+    --marquee-dim:#a9812f;
+    --velvet:#7a2b34;
+    --teal:#2c4a48;
+    --radius:2px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    height:100%;
+    margin:0;
+    background:
+      radial-gradient(ellipse at 50% -10%, #2a2430 0%, var(--ink) 55%),
+      var(--ink);
+    color:var(--paper);
+    font-family:'Work Sans', sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 18px;
+  }
+
+  /* subtle film grain */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    pointer-events:none;
+    opacity:.06;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .stage{
+    width:100%;
+    max-width:420px;
+  }
+
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.28em;
+    text-transform:uppercase;
+    color:var(--marquee);
+    text-align:center;
+    margin:0 0 10px;
+  }
+
+  h1{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:clamp(34px, 8vw, 46px);
+    letter-spacing:.04em;
+    text-align:center;
+    margin:0 0 6px;
+    color:var(--paper);
+    text-shadow:0 0 24px rgba(232,185,77,.18);
+  }
+
+  .sub{
+    text-align:center;
+    color:var(--paper-dim);
+    font-size:14px;
+    margin:0 0 28px;
+    line-height:1.5;
+  }
+
+  /* ---- ticket card ---- */
+  .ticket{
+    position:relative;
+    background:var(--ink-2);
+    border:1px solid rgba(232,185,77,.18);
+    padding:30px 28px 26px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.7);
+  }
+
+  /* sprocket strip top & bottom */
+  .sprockets{
+    height:14px;
+    background-image:repeating-linear-gradient(
+      90deg,
+      transparent 0 6px,
+      var(--ink) 6px 16px
+    );
+    position:relative;
+  }
+  .sprockets::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:radial-gradient(circle, var(--ink) 3.5px, transparent 3.6px);
+    background-size:16px 14px;
+    background-position:3px 0;
+  }
+  .sprockets.top{ background-color:var(--marquee-dim); }
+  .sprockets.bottom{ background-color:var(--velvet); }
+  .sprockets.top::before,
+  .sprockets.bottom::before{ background-image:radial-gradient(circle, var(--ink) 3.5px, transparent 3.6px); }
+
+  /* notches to fake a torn ticket stub */
+  .ticket::after,
+  .ticket::before{
+    content:"";
+    position:absolute;
+    width:22px; height:22px;
+    background:var(--ink);
+    border-radius:50%;
+    top:50%;
+    transform:translateY(-50%);
+  }
+  .ticket::before{ left:-11px; }
+  .ticket::after{ right:-11px; }
+
+  label{
+    display:block;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--marquee);
+    margin:22px 0 10px;
+  }
+
+  .field{
+    position:relative;
+    display:flex;
+    align-items:center;
+    background:var(--ink);
+    border:1px solid rgba(242,236,225,.14);
+    border-radius:var(--radius);
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  .field:focus-within{
+    border-color:var(--marquee);
+    box-shadow:0 0 0 3px rgba(232,185,77,.12);
+  }
+
+  .field .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    color:var(--paper-dim);
+    padding:14px 0 14px 16px;
+    user-select:none;
+  }
+
+  input#imdbId{
+    flex:1;
+    min-width:0;
+    background:transparent;
+    border:0;
+    outline:0;
+    color:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    font-size:15px;
+    letter-spacing:.03em;
+    padding:14px 16px 14px 4px;
+  }
+  input#imdbId::placeholder{ color:#5c5560; }
+
+  .hint{
+    font-size:12px;
+    color:var(--paper-dim);
+    margin:8px 2px 0;
+    min-height:16px;
+  }
+  .hint.error{ color:#e07a6a; }
+  .hint.ok{ color:#7fbf8f; }
+
+  button{
+    width:100%;
+    margin-top:24px;
+    padding:15px 20px;
+    border:none;
+    border-radius:var(--radius);
+    background:linear-gradient(180deg, var(--marquee), var(--marquee-dim));
+    color:#1a1408;
+    font-family:'Bebas Neue', sans-serif;
+    font-size:19px;
+    letter-spacing:.08em;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  button:hover{ transform:translateY(-1px); box-shadow:0 10px 24px -10px rgba(232,185,77,.5); }
+  button:active{ transform:translateY(0); }
+  button:disabled{ opacity:.7; cursor:progress; }
+
+  .reel{
+    width:16px; height:16px;
+    border-radius:50%;
+    border:2px solid #1a1408;
+    border-top-color:transparent;
+    display:none;
+    animation:spin .7s linear infinite;
+  }
+  button.loading .reel{ display:inline-block; }
+  button.loading .btn-label{ display:none; }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .footnote{
+    text-align:center;
+    font-size:12px;
+    color:var(--paper-dim);
+    margin-top:18px;
+    font-family:'JetBrains Mono', monospace;
+    letter-spacing:.04em;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    button, .field, .reel{ transition:none; animation:none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <p class="eyebrow">SUBTITRARI AI</p>
+    <h1>Caută titlul</h1>
+    <p class="sub">Introdu ID-ul IMDb al filmului sau serialului pentru a-i prelua subtitrarea și datele.</p>
+
+    <form class="ticket" id="lookupForm" novalidate>
+      <div class="sprockets top" aria-hidden="true"></div>
+
+      <label for="imdbId">ID IMDb</label>
+      <div class="field">
+        <input
+          type="text"
+          id="imdbId"
+          name="imdbId"
+          placeholder="tt1234567"
+          autocomplete="off"
+          spellcheck="false"
+          aria-describedby="idHint"
+          required
+        >
+      </div>
+      <p class="hint" id="idHint">Găsești ID-ul în URL-ul paginii IMDb: imdb.com/title/<strong>tt1234567</strong></p>
+
+      <button type="submit" id="submitBtn">
+        <span class="reel" aria-hidden="true"></span>
+        <span class="btn-label">Caută filmul</span>
+      </button>
+
+      <div class="sprockets bottom" aria-hidden="true"></div>
+    </form>
+
+    <p class="footnote">— START —</p>
+  </div>
+
+<script>
+  const form = document.getElementById('lookupForm');
+  const input = document.getElementById('imdbId');
+  const hint = document.getElementById('idHint');
+  const btn = document.getElementById('submitBtn');
+  const defaultHint = hint.textContent;
+
+  function normalizedId(raw){
+    return raw.trim().toLowerCase();
+  }
+
+  function isValid(raw){
+    return /^tt\d{7,8}$/.test(normalizedId(raw));
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = normalizedId(input.value);
+
+    if(!isValid(id)){
+      hint.textContent = 'ID invalid — formatul corect este tt urmat de 7-8 cifre, ex: tt1234567.';
+      hint.className = 'hint error';
+      input.focus();
+      return;
+    }
+
+    hint.textContent = defaultHint;
+    hint.className = 'hint';
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    // Aici se face request-ul real către API-ul tău / backend.
+    // Exemplu: fetch(`/api/titles/${id}`)
+  fetch(`/api/titles/${id}`)
+  .then(async response => {
+    if (!response.ok) {
+      const data = await response.json();
+
+      hint.style.color = '#e07a6a';
+      hint.textContent = 'Nu s-a găsit niciun fișier de subtitrări.';
+      hint.className = 'hint error';
+      return;
+    }
+
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `${id}.srt`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+
+    hint.style.color = '#7fbf8f';
+    hint.textContent = 'Subtitrarea a fost găsită și descărcată!';
+    hint.className = 'hint ok';
+  })
+  .catch(error => {
+    console.error(error);
+    hint.textContent = 'A apărut o eroare.';
+    hint.className = 'hint error';
+  })
+  .finally(() => {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  });
+  });
+</script>
+
+</body>
+</html>
