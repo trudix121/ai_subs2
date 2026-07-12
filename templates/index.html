@@ -35,7 +35,6 @@
     padding:32px 18px;
   }
 
-  /* subtle film grain */
   body::before{
     content:"";
     position:fixed; inset:0;
@@ -77,7 +76,6 @@
     line-height:1.5;
   }
 
-  /* ---- ticket card ---- */
   .ticket{
     position:relative;
     background:var(--ink-2);
@@ -86,7 +84,6 @@
     box-shadow:0 30px 60px -20px rgba(0,0,0,.7);
   }
 
-  /* sprocket strip top & bottom */
   .sprockets{
     height:14px;
     background-image:repeating-linear-gradient(
@@ -109,7 +106,6 @@
   .sprockets.top::before,
   .sprockets.bottom::before{ background-image:radial-gradient(circle, var(--ink) 3.5px, transparent 3.6px); }
 
-  /* notches to fake a torn ticket stub */
   .ticket::after,
   .ticket::before{
     content:"";
@@ -124,13 +120,47 @@
   .ticket::after{ right:-11px; }
 
   label{
-    display:block;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
     font-family:'JetBrains Mono', monospace;
     font-size:11px;
     letter-spacing:.16em;
     text-transform:uppercase;
     color:var(--marquee);
     margin:22px 0 10px;
+  }
+
+  .help-toggle{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:normal;
+    text-transform:none;
+    color:var(--paper-dim);
+    background:none;
+    border:none;
+    padding:0;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .help-toggle:hover{ color:var(--marquee); }
+
+  .help-box{
+    display:none;
+    font-size:12.5px;
+    color:var(--paper-dim);
+    background:var(--ink);
+    border:1px solid rgba(242,236,225,.1);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    margin:-2px 0 14px;
+    line-height:1.55;
+  }
+  .help-box.open{ display:block; }
+  .help-box code{
+    color:var(--marquee);
+    font-family:'JetBrains Mono', monospace;
   }
 
   .field{
@@ -146,6 +176,8 @@
     border-color:var(--marquee);
     box-shadow:0 0 0 3px rgba(232,185,77,.12);
   }
+  .field.error{ border-color:#e07a6a; }
+  .field.ok{ border-color:#7fbf8f; }
 
   .field .tag{
     font-family:'JetBrains Mono', monospace;
@@ -169,11 +201,21 @@
   }
   input#imdbId::placeholder{ color:#5c5560; }
 
+  .field-icon{
+    padding-right:14px;
+    font-size:15px;
+    line-height:1;
+    display:none;
+  }
+  .field.error .field-icon.err{ display:block; color:#e07a6a; }
+  .field.ok .field-icon.good{ display:block; color:#7fbf8f; }
+
   .hint{
     font-size:12px;
     color:var(--paper-dim);
     margin:8px 2px 0;
     min-height:16px;
+    line-height:1.5;
   }
   .hint.error{ color:#e07a6a; }
   .hint.ok{ color:#7fbf8f; }
@@ -198,7 +240,7 @@
   }
   button:hover{ transform:translateY(-1px); box-shadow:0 10px 24px -10px rgba(232,185,77,.5); }
   button:active{ transform:translateY(0); }
-  button:disabled{ opacity:.7; cursor:progress; }
+  button:disabled{ opacity:.85; cursor:progress; }
 
   .reel{
     width:16px; height:16px;
@@ -207,11 +249,92 @@
     border-top-color:transparent;
     display:none;
     animation:spin .7s linear infinite;
+    flex-shrink:0;
   }
   button.loading .reel{ display:inline-block; }
   button.loading .btn-label{ display:none; }
 
   @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* --- progress panel (apare doar cât timp durează request-ul) --- */
+  .progress{
+    display:none;
+    margin-top:14px;
+    padding:14px 14px 12px;
+    background:var(--ink);
+    border:1px solid rgba(232,185,77,.15);
+    border-radius:var(--radius);
+  }
+  .progress.open{ display:block; }
+
+  .progress-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .progress-msg{
+    font-size:12.5px;
+    color:var(--paper);
+    line-height:1.5;
+    flex:1;
+  }
+
+  .progress-time{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--marquee);
+    white-space:nowrap;
+  }
+
+  .progress-bar{
+    height:3px;
+    width:100%;
+    background:rgba(242,236,225,.1);
+    border-radius:2px;
+    margin-top:10px;
+    overflow:hidden;
+    position:relative;
+  }
+
+  /* mod "determinat" — folosit când avem current_chunk/total_chunks reale */
+  .progress-bar-fill{
+    height:100%;
+    border-radius:2px;
+    background:linear-gradient(90deg, var(--marquee-dim), var(--marquee));
+    width:8%;
+    transition:width .5s ease;
+  }
+
+  /* mod "indeterminat" — folosit cât nu avem încă un procent real
+     (ex: în etapa de căutare/descărcare, înainte de splitting) */
+  .progress-bar.indeterminate .progress-bar-fill{
+    width:30%;
+    animation:slide 1.6s ease-in-out infinite;
+    transition:none;
+  }
+  @keyframes slide{
+    0%{ transform:translateX(-100%); }
+    100%{ transform:translateX(330%); }
+  }
+
+  .cancel-link{
+    display:none;
+    text-align:center;
+    margin-top:10px;
+  }
+  .cancel-link.open{ display:block; }
+  .cancel-link button{
+    all:unset;
+    cursor:pointer;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--paper-dim);
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .cancel-link button:hover{ color:#e07a6a; }
 
   .footnote{
     text-align:center;
@@ -223,7 +346,7 @@
   }
 
   @media (prefers-reduced-motion: reduce){
-    button, .field, .reel{ transition:none; animation:none; }
+    button, .field, .reel, .progress-bar-fill{ transition:none; animation:none; }
   }
 </style>
 </head>
@@ -232,30 +355,54 @@
   <div class="stage">
     <p class="eyebrow">SUBTITRARI AI</p>
     <h1>Caută titlul</h1>
-    <p class="sub">Introdu ID-ul IMDb al filmului sau serialului pentru a-i prelua subtitrarea și datele.</p>
+    <p class="sub">Introdu ID-ul IMDb al filmului sau serialului pentru a-i prelua și traduce subtitrarea.</p>
 
     <form class="ticket" id="lookupForm" novalidate>
       <div class="sprockets top" aria-hidden="true"></div>
 
-      <label for="imdbId">ID IMDb</label>
-      <div class="field">
+      <label for="imdbId">
+        <span>ID IMDb</span>
+        <button type="button" class="help-toggle" id="helpToggle">unde îl găsesc?</button>
+      </label>
+
+      <div class="help-box" id="helpBox">
+        Intră pe pagina filmului pe IMDb și copiază ID-ul din URL:<br>
+        imdb.com/title/<code>tt1234567</code>/…<br><br>
+        Poți lipi și link-ul întreg — îl extragem noi automat.
+      </div>
+
+      <div class="field" id="fieldWrap">
         <input
           type="text"
           id="imdbId"
           name="imdbId"
-          placeholder="tt1234567"
+          placeholder="tt1234567 sau link IMDb"
           autocomplete="off"
           spellcheck="false"
           aria-describedby="idHint"
           required
         >
+        <span class="field-icon err" aria-hidden="true">✕</span>
+        <span class="field-icon good" aria-hidden="true">✓</span>
       </div>
-      <p class="hint" id="idHint">Găsești ID-ul în URL-ul paginii IMDb: imdb.com/title/<strong>tt1234567</strong></p>
+      <p class="hint" id="idHint">Acceptăm și ID simplu, și link complet IMDb.</p>
 
       <button type="submit" id="submitBtn">
         <span class="reel" aria-hidden="true"></span>
         <span class="btn-label">Caută filmul</span>
       </button>
+
+      <div class="progress" id="progress">
+        <div class="progress-row">
+          <span class="progress-msg" id="progressMsg">Se verifică dacă avem deja subtitrarea…</span>
+          <span class="progress-time" id="progressTime">0:00</span>
+        </div>
+        <div class="progress-bar indeterminate" id="progressBar"><div class="progress-bar-fill"></div></div>
+      </div>
+
+      <div class="cancel-link" id="cancelWrap">
+        <button type="button" id="cancelBtn">renunță la căutare</button>
+      </div>
 
       <div class="sprockets bottom" aria-hidden="true"></div>
     </form>
@@ -266,74 +413,228 @@
 <script>
   const form = document.getElementById('lookupForm');
   const input = document.getElementById('imdbId');
+  const fieldWrap = document.getElementById('fieldWrap');
   const hint = document.getElementById('idHint');
   const btn = document.getElementById('submitBtn');
+  const helpToggle = document.getElementById('helpToggle');
+  const helpBox = document.getElementById('helpBox');
+  const progress = document.getElementById('progress');
+  const progressMsg = document.getElementById('progressMsg');
+  const progressTime = document.getElementById('progressTime');
+  const progressBar = document.getElementById('progressBar');
+  const progressBarFill = progressBar.querySelector('.progress-bar-fill');
+  const cancelWrap = document.getElementById('cancelWrap');
+  const cancelBtn = document.getElementById('cancelBtn');
+
   const defaultHint = hint.textContent;
 
-  function normalizedId(raw){
-    return raw.trim().toLowerCase();
+  const STATUS_POLL_MS = 1500;
+
+  let timerInterval = null;
+  let statusInterval = null;
+  let abortController = null;
+  let startedAt = 0;
+
+  // Mesaje default pentru fiecare etapă, folosite ca fallback dacă serverul
+  // nu trimite un "message" explicit pentru status-ul curent.
+  const STAGE_LABELS = {
+    idle: 'Se pregătește căutarea…',
+    searching: 'Se caută subtitrarea în limba engleză…',
+    downloading: 'Se descarcă subtitrarea originală…',
+    splitting: 'Se împarte subtitrarea în bucăți…',
+    translating: 'Se traduce în română…',
+    saving: 'Se salvează fișierul final…',
+    done: 'Gata — se pregătește descărcarea…',
+  };
+
+  function formatTime(sec){
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function extractId(raw){
+    const v = raw.trim();
+    const match = v.match(/tt\d{7,9}/i);
+    return match ? match[0].toLowerCase() : '';
   }
 
   function isValid(raw){
-    return /^tt\d{7,8}$/.test(normalizedId(raw));
+    return !!extractId(raw);
   }
+
+  function validateLive(){
+    const raw = input.value;
+    if(!raw){
+      fieldWrap.classList.remove('error', 'ok');
+      hint.textContent = defaultHint;
+      hint.className = 'hint';
+      return;
+    }
+    if(isValid(raw)){
+      fieldWrap.classList.remove('error');
+      fieldWrap.classList.add('ok');
+      const id = extractId(raw);
+      hint.textContent = raw.trim() === id ? 'Format valid.' : `Am extras ID-ul: ${id}`;
+      hint.className = 'hint ok';
+    } else {
+      fieldWrap.classList.remove('ok');
+      fieldWrap.classList.add('error');
+      hint.textContent = 'Format neclar — ID-ul trebuie să fie de forma tt1234567.';
+      hint.className = 'hint error';
+    }
+  }
+
+  input.addEventListener('input', validateLive);
+
+  helpToggle.addEventListener('click', () => {
+    helpBox.classList.toggle('open');
+    helpToggle.textContent = helpBox.classList.contains('open') ? 'ascunde' : 'unde îl găsesc?';
+  });
+
+  function setProgressBar(percent){
+    if(percent === null){
+      progressBar.classList.add('indeterminate');
+      progressBarFill.style.width = '';
+    } else {
+      progressBar.classList.remove('indeterminate');
+      progressBarFill.style.width = `${Math.max(4, Math.min(100, percent))}%`;
+    }
+  }
+
+  function applyStatus(status){
+    if(!status || status.stage === 'idle'){
+      progressMsg.textContent = STAGE_LABELS.idle;
+      setProgressBar(null);
+      return;
+    }
+
+    const label = status.message || STAGE_LABELS[status.stage] || 'Se procesează…';
+    progressMsg.textContent = label;
+
+    if(status.stage === 'translating' && status.total_chunks){
+      const done = status.current_chunk || 0;
+      const percent = (done / status.total_chunks) * 100;
+      setProgressBar(percent);
+      progressMsg.textContent = `${label} (bucata ${done}/${status.total_chunks})`;
+    } else if(status.stage === 'done'){
+      setProgressBar(100);
+    } else {
+      // etape fără procent cunoscut (searching, downloading, splitting, saving)
+      setProgressBar(null);
+    }
+  }
+
+  function pollStatus(id){
+    fetch(`/api/titles/${id}/status`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if(data) applyStatus(data);
+      })
+      .catch(() => { /* nu blocăm UI-ul dacă polling-ul dă eroare ocazional */ });
+  }
+
+  function startProgress(id){
+    progress.classList.add('open');
+    cancelWrap.classList.add('open');
+    startedAt = Date.now();
+    progressTime.textContent = '0:00';
+    applyStatus({ stage: 'idle' });
+
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      progressTime.textContent = formatTime(elapsed);
+    }, 1000);
+
+    // primul poll imediat, apoi la interval regulat
+    pollStatus(id);
+    statusInterval = setInterval(() => pollStatus(id), STATUS_POLL_MS);
+  }
+
+  function stopProgress(){
+    clearInterval(timerInterval);
+    clearInterval(statusInterval);
+    progress.classList.remove('open');
+    cancelWrap.classList.remove('open');
+  }
+
+  cancelBtn.addEventListener('click', () => {
+    if(abortController){
+      abortController.abort();
+    }
+  });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const id = normalizedId(input.value);
+    const id = extractId(input.value);
 
-    if(!isValid(id)){
-      hint.textContent = 'ID invalid — formatul corect este tt urmat de 7-8 cifre, ex: tt1234567.';
+    if(!id){
+      fieldWrap.classList.add('error');
+      hint.textContent = 'ID invalid — formatul corect este tt urmat de 7-9 cifre, ex: tt1234567.';
       hint.className = 'hint error';
       input.focus();
       return;
     }
 
-    hint.textContent = defaultHint;
+    hint.textContent = `Se caută pentru ${id}…`;
     hint.className = 'hint';
     btn.classList.add('loading');
     btn.disabled = true;
+    input.disabled = true;
 
-    // Aici se face request-ul real către API-ul tău / backend.
-    // Exemplu: fetch(`/api/titles/${id}`)
-  fetch(`/api/titles/${id}`)
-  .then(async response => {
-    if (!response.ok) {
-      const data = await response.json();
+    abortController = new AbortController();
+    startProgress(id);
 
-      hint.style.color = '#e07a6a';
-      hint.textContent = 'Nu s-a găsit niciun fișier de subtitrări.';
-      hint.className = 'hint error';
-      return;
-    }
+    fetch(`/api/titles/${id}`, { signal: abortController.signal })
+      .then(async response => {
+        if (!response.ok) {
+          let message = 'Nu s-a găsit niciun fișier de subtitrări pentru acest ID.';
+          try {
+            const data = await response.json();
+            if(data && data.message) message = data.message;
+          } catch(_) { /* folosim mesajul implicit */ }
 
-    const blob = await response.blob();
+          fieldWrap.classList.remove('ok');
+          fieldWrap.classList.add('error');
+          hint.textContent = message;
+          hint.className = 'hint error';
+          return;
+        }
 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
 
-    a.href = url;
-    a.download = `${id}.srt`;
+        a.href = url;
+        a.download = `${id}.srt`;
 
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
 
-    URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url);
 
-    hint.style.color = '#7fbf8f';
-    hint.textContent = 'Subtitrarea a fost găsită și descărcată!';
-    hint.className = 'hint ok';
-  })
-  .catch(error => {
-    console.error(error);
-    hint.textContent = 'A apărut o eroare.';
-    hint.className = 'hint error';
-  })
-  .finally(() => {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-  });
+        fieldWrap.classList.remove('error');
+        fieldWrap.classList.add('ok');
+        hint.textContent = 'Subtitrarea a fost găsită, tradusă și descărcată!';
+        hint.className = 'hint ok';
+      })
+      .catch(error => {
+        if(error.name === 'AbortError'){
+          hint.textContent = 'Căutare anulată. Traducerea poate continua în fundal pe server, dar poți încerca din nou mai târziu.';
+          hint.className = 'hint error';
+          return;
+        }
+        console.error(error);
+        hint.textContent = 'A apărut o eroare de rețea. Verifică conexiunea și încearcă din nou.';
+        hint.className = 'hint error';
+      })
+      .finally(() => {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        input.disabled = false;
+        stopProgress();
+      });
   });
 </script>
 
