@@ -7,6 +7,7 @@ import asyncio
 from google.genai import types
 import re
 import time
+import threading
 load_dotenv()
 
 
@@ -57,12 +58,64 @@ config = types.GenerateContentConfig(
 )
 
 
-
 MAX_INPUT_TOKENS = 5000
 MAX_RETRIES = 5
 RETRY_DELAY = 5  # secunde
+
+CHARS_PER_TOKEN = 3.2
+SAFETY_MARGIN = 0.85
+EFFECTIVE_MAX_TOKENS = int(MAX_INPUT_TOKENS * SAFETY_MARGIN)
+
 os.makedirs(subs_dir, exist_ok=True)
 os.makedirs(cache_dir, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Coordonare joburi: evită traduceri duplicate pentru același imdb_id și
+# expune un status "live" pe care frontend-ul îl poate interoga.
+# ---------------------------------------------------------------------------
+_locks_guard = threading.Lock()
+_id_locks = {}          # imdb_id -> threading.Lock, unul per titlu
+_job_status = {}         # imdb_id -> dict cu stage / progres
+_status_guard = threading.Lock()
+
+
+def get_lock_for(imdb_id):
+    """Returnează (creând-o dacă lipsește) o încuietoare dedicată unui imdb_id,
+    ca să nu pornim două traduceri simultane pentru același titlu."""
+    with _locks_guard:
+        if imdb_id not in _id_locks:
+            _id_locks[imdb_id] = threading.Lock()
+        return _id_locks[imdb_id]
+
+
+def set_status(imdb_id, **fields):
+    with _status_guard:
+        current = _job_status.get(imdb_id, {})
+        current.update(fields)
+        current.setdefault("started_at", time.time())
+        _job_status[imdb_id] = current
+
+
+def clear_status(imdb_id):
+    with _status_guard:
+        _job_status.pop(imdb_id, None)
+
+
+def get_status(imdb_id):
+    with _status_guard:
+        return dict(_job_status.get(imdb_id, {}))
+
+
+def estimate_tokens(text: str) -> int:
+    """
+    Estimare rapidă a numărului de tokeni, fără apel API.
+    Nu e exactă, dar e suficient de bună pentru decizia de splitting
+    și nu consumă CPU/rețea suplimentar.
+    """
+    if not text:
+        return 0
+    return max(1, int(len(text) / CHARS_PER_TOKEN))
 
 
 def split_by_tokens(content):
@@ -70,10 +123,7 @@ def split_by_tokens(content):
         if not content:
             raise ValueError("Subtitle content is empty.")
 
-        # Normalizează newline-urile
         content = content.replace("\r\n", "\n").strip()
-
-        # Împarte în blocuri SRT
         blocks = re.split(r"\n\s*\n", content)
 
         if not blocks:
@@ -89,17 +139,9 @@ def split_by_tokens(content):
             if not block:
                 continue
 
-            try:
-                block_tokens = client.models.count_tokens(
-                    model="gemini-3.5-flash",
-                    contents=block
-                ).total_tokens
-            except Exception as e:
-                print(f"Error counting tokens: {e}")
-                raise
+            block_tokens = estimate_tokens(block)
 
-            # Dacă un singur bloc este prea mare
-            if block_tokens > MAX_INPUT_TOKENS:
+            if block_tokens > EFFECTIVE_MAX_TOKENS:
                 if current_blocks:
                     chunks.append("\n\n".join(current_blocks))
                     current_blocks = []
@@ -108,7 +150,7 @@ def split_by_tokens(content):
                 chunks.append(block)
                 continue
 
-            if current_tokens + block_tokens > MAX_INPUT_TOKENS:
+            if current_tokens + block_tokens > EFFECTIVE_MAX_TOKENS:
                 chunks.append("\n\n".join(current_blocks))
                 current_blocks = [block]
                 current_tokens = block_tokens
@@ -131,7 +173,7 @@ def split_by_tokens(content):
                     contents=chunk
                 ).total_tokens
 
-                print(f"Chunk {i}: {tokens} tokens")
+                print(f"Chunk {i}: ~{estimate_tokens(chunk)} estimated / {tokens} real tokens")
 
             except Exception as e:
                 print(f"Failed to count tokens for chunk {i}: {e}")
@@ -146,11 +188,21 @@ def split_by_tokens(content):
 def translate_subs(file_content, imdb_id):
     print(f"GENERATING SUBS FOR {imdb_id}")
 
+    set_status(imdb_id, stage="splitting", message="Se împarte subtitrarea în bucăți…")
     chunks = split_by_tokens(file_content)
     translated = []
 
+    set_status(
+        imdb_id,
+        stage="translating",
+        total_chunks=len(chunks),
+        current_chunk=0,
+        message="Se traduce în română…"
+    )
+
     for i, chunk in enumerate(chunks, start=1):
         print(f"Chunk {i}/{len(chunks)}")
+        set_status(imdb_id, current_chunk=i)
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
@@ -168,12 +220,17 @@ def translate_subs(file_content, imdb_id):
 
             except Exception as e:
                 print(f"[Chunk {i}] Attempt {attempt}/{MAX_RETRIES} failed: {e}")
+                set_status(
+                    imdb_id,
+                    message=f"Reîncercare pentru bucata {i}/{len(chunks)} (încercarea {attempt}/{MAX_RETRIES})…"
+                )
 
                 if attempt == MAX_RETRIES:
                     raise
 
-                # backoff: 5s, 10s, 15s...
                 time.sleep(RETRY_DELAY * attempt)
+
+    set_status(imdb_id, stage="saving", message="Se salvează fișierul final…")
 
     result = "\n\n".join(translated)
 
@@ -187,14 +244,11 @@ def translate_subs(file_content, imdb_id):
     return result
 
 
-
-
-
 def get_subs(imdb_id):
     print("========================================")
     print(f"Searching subtitles for {imdb_id}")
 
-
+    set_status(imdb_id, stage="searching", message="Se caută subtitrarea în engleză…")
 
     search = requests.get(
         "https://sub.wyzie.io/search",
@@ -219,6 +273,8 @@ def get_subs(imdb_id):
     print("Language:", subtitle["language"])
     print("Downloading:", subtitle["url"])
 
+    set_status(imdb_id, stage="downloading", message="Se descarcă subtitrarea originală…")
+
     file = requests.get(subtitle["url"])
     file.raise_for_status()
 
@@ -232,11 +288,10 @@ def get_subs(imdb_id):
         translate_subs(file.text, imdb_id=imdb_id)
     except Exception as e:
         print(e)
+        raise
     finally:
         if os.path.exists(cache_file):
-           os.remove(cache_file)
-            
-
+            os.remove(cache_file)
 
 
 @app.route('/', methods=['GET'])
@@ -252,14 +307,51 @@ def get_title(title_id):
         f"{title_id}.srt"
     )
 
-    if not os.path.exists(file_path):
-        try:
-            get_subs(title_id)
-        except Exception:
-            return jsonify({
-                "ok": False,
-                "message": "Title not found"
-            }), 404
+    # Cazul rapid: fișierul există deja (cache permanent) — servim direct,
+    # fără să atingem lock-ul sau API-ul Gemini.
+    if os.path.exists(file_path):
+        return send_file(
+            file_path,
+            mimetype="text/plain",
+            as_attachment=True,
+            download_name=f"{title_id}.srt"
+        )
+
+    lock = get_lock_for(title_id)
+
+    # Încercăm să prindem lock-ul fără să blocăm. Dacă altcineva îl ține deja,
+    # înseamnă că exact acest titlu se traduce chiar acum — nu mai pornim
+    # o a doua traducere, ci așteptăm să se termine prima.
+    acquired = lock.acquire(blocking=False)
+
+    if not acquired:
+        set_status(title_id, message=get_status(title_id).get("message", "Traducere deja în curs…"))
+        lock.acquire()  # blocăm până se eliberează (adică până termină celălalt request)
+        lock.release()
+
+        if os.path.exists(file_path):
+            return send_file(
+                file_path,
+                mimetype="text/plain",
+                as_attachment=True,
+                download_name=f"{title_id}.srt"
+            )
+
+        return jsonify({
+            "ok": False,
+            "message": "Title not found"
+        }), 404
+
+    try:
+        get_subs(title_id)
+    except Exception:
+        return jsonify({
+            "ok": False,
+            "message": "Title not found"
+        }), 404
+    finally:
+        clear_status(title_id)
+        lock.release()
 
     if os.path.exists(file_path):
         return send_file(
@@ -274,5 +366,19 @@ def get_title(title_id):
         "message": "Title not found"
     }), 404
 
-   
-   
+
+@app.route('/api/titles/<string:title_id>/status')
+def get_title_status(title_id):
+    """Endpoint opțional pentru progres real (de folosit de frontend prin polling,
+    în loc de un timer aproximativ)."""
+    file_path = os.path.join(subs_dir, f"{title_id}.srt")
+
+    if os.path.exists(file_path):
+        return jsonify({"ok": True, "stage": "done", "message": "Fișier disponibil."})
+
+    status = get_status(title_id)
+
+    if not status:
+        return jsonify({"ok": True, "stage": "idle", "message": "Nicio traducere activă pentru acest titlu."})
+
+    return jsonify({"ok": True, **status})
