@@ -3,16 +3,20 @@ from dotenv import load_dotenv
 import os
 import requests
 from flask import Flask, request, jsonify, render_template, send_file
-import asyncio
 from google.genai import types
 import re
 import time
 import threading
+import io
+import rarfile
+import zipfile
 load_dotenv()
 
 
 app = Flask(__name__)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options={'timeout': 60 * 60 * 1000})
+
+rarfile.UNRAR_TOOL = r"C:\Program Files\7-Zip\7z.exe"
 
 subs_dir = os.path.join(os.path.dirname(__file__), 'subs')
 cache_dir = os.path.join(os.path.dirname(__file__), "cache")
@@ -80,6 +84,9 @@ _job_status = {}         # imdb_id -> dict cu stage / progres
 _status_guard = threading.Lock()
 
 
+
+
+
 def get_lock_for(imdb_id):
     """Returnează (creând-o dacă lipsește) o încuietoare dedicată unui imdb_id,
     ca să nu pornim două traduceri simultane pentru același titlu."""
@@ -108,11 +115,6 @@ def get_status(imdb_id):
 
 
 def estimate_tokens(text: str) -> int:
-    """
-    Estimare rapidă a numărului de tokeni, fără apel API.
-    Nu e exactă, dar e suficient de bună pentru decizia de splitting
-    și nu consumă CPU/rețea suplimentar.
-    """
     if not text:
         return 0
     return max(1, int(len(text) / CHARS_PER_TOKEN))
@@ -240,11 +242,18 @@ def translate_subs(file_content, imdb_id):
         encoding="utf-8"
     ) as f:
         f.write(result)
+    path = os.path.join(subs_dir, f"{imdb_id}.srt")
+
+    print("\n===== FILE SAVED =====")
+    print("Path:", path)
+    print("Exists:", os.path.exists(path))
+    print("Size:", os.path.getsize(path))
+    print("======================\n")
 
     return result
 
 
-def get_subs(imdb_id):
+def get_subs_opensubs(imdb_id):
     print("========================================")
     print(f"Searching subtitles for {imdb_id}")
 
@@ -293,6 +302,211 @@ def get_subs(imdb_id):
         if os.path.exists(cache_file):
             os.remove(cache_file)
 
+def get_subs_ro(imdb_id):
+    api_key = os.getenv("SUBS_RO_API_KEY")
+
+    if not api_key:
+        raise RuntimeError("SUBS_RO_API_KEY nu este configurată.")
+
+    set_status(
+        imdb_id,
+        stage="searching",
+        message="Se caută subtitrarea..."
+    )
+
+    print("========================================")
+    print("SUBS.RO")
+    print("IMDb:", imdb_id)
+
+    # --------------------------------------------------------
+    # SEARCH
+    # --------------------------------------------------------
+
+    response = requests.get(
+        f"https://api.subs.ro/v1.0/search/imdbid/{imdb_id}",
+        headers={
+            "X-Subs-Api-Key": api_key
+        },
+        params={
+            "language": "en"
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    print("Search status:", response.status_code)
+    print("Found subtitles:", data.get("count"))
+
+    if data.get("count", 0) == 0:
+        raise Exception("Nu s-au găsit subtitrări.")
+
+    subtitle_info = next(
+        (x for x in data["items"] if x.get("language") == "en"),
+        data["items"][0]
+    )
+
+    download_url = subtitle_info["downloadLink"]
+
+    print("Download:", download_url)
+
+    # --------------------------------------------------------
+    # DOWNLOAD
+    # --------------------------------------------------------
+
+    set_status(
+        imdb_id,
+        stage="downloading",
+        message="Se descarcă subtitrarea..."
+    )
+
+    subtitle = requests.get(
+        download_url,
+        headers={
+            "X-Subs-Api-Key": api_key
+        },
+        timeout=60
+    )
+
+    subtitle.raise_for_status()
+
+    raw = subtitle.content
+    print(raw)
+
+    print("========================================")
+    print("DOWNLOAD")
+    print("Status:", subtitle.status_code)
+    print("Content-Type:", subtitle.headers.get("Content-Type"))
+    print("Size:", len(raw))
+    print("Magic:", raw[:8])
+    print("========================================")
+
+    file_content = None
+
+    # --------------------------------------------------------
+    # ZIP
+    # --------------------------------------------------------
+
+    if raw.startswith(b"PK"):
+
+        print("ZIP detected")
+
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+
+            print("Files:", archive.namelist())
+
+            srt_name = next(
+                (
+                    name
+                    for name in archive.namelist()
+                    if name.lower().endswith(".srt")
+                ),
+                None
+            )
+
+            if srt_name is None:
+                raise Exception("ZIP-ul nu conține fișier .srt")
+
+            with archive.open(srt_name) as fp:
+                file_content = fp.read().decode(
+                    "utf-8",
+                    errors="replace"
+                )
+
+    # --------------------------------------------------------
+    # RAR
+    # --------------------------------------------------------
+
+    elif raw.startswith(b"Rar!"):
+
+        print("RAR detected")
+
+        rar_path = os.path.join(
+            cache_dir,
+            f"{imdb_id}.rar"
+        )
+
+        with open(rar_path, "wb") as f:
+            f.write(raw)
+
+        try:
+
+            with rarfile.RarFile(rar_path) as archive:
+
+                print("Files:", archive.namelist())
+
+                srt_name = next(
+                    (
+                        name
+                        for name in archive.namelist()
+                        if name.lower().endswith(".srt")
+                    ),
+                    None
+                )
+
+                if srt_name is None:
+                    raise Exception("RAR-ul nu conține fișier .srt")
+
+                with archive.open(srt_name) as fp:
+                    file_content = fp.read().decode(
+                        "utf-8",
+                        errors="replace"
+                    )
+
+        finally:
+
+            if os.path.exists(rar_path):
+                os.remove(rar_path)
+
+    # --------------------------------------------------------
+    # DIRECT SRT
+    # --------------------------------------------------------
+
+    else:
+
+        print("Trying direct SRT...")
+
+        try:
+            file_content = raw.decode(
+                "utf-8",
+                errors="replace"
+            )
+
+            if "-->" not in file_content:
+                raise Exception()
+
+            print("Direct SRT detected.")
+
+        except Exception:
+
+            print(file_content[:500] if file_content else raw[:200])
+
+            raise Exception(
+                "Subs.ro nu a returnat ZIP, RAR sau SRT."
+            )
+
+    # --------------------------------------------------------
+    # VALIDARE
+    # --------------------------------------------------------
+
+    if not file_content:
+        raise Exception("Subtitrarea este goală.")
+
+    print("--------------------------------")
+    print("Subtitle length:", len(file_content))
+    print(file_content[:1000])
+    print("--------------------------------")
+
+    # --------------------------------------------------------
+    # TRADUCERE
+    # --------------------------------------------------------
+
+    translate_subs(file_content, imdb_id)
+
+    print("Subtitle processed successfully.")
+
 
 @app.route('/', methods=['GET'])
 def home():
@@ -301,15 +515,25 @@ def home():
 
 @app.route('/api/titles/<string:title_id>')
 def get_title(title_id):
+    provider = request.args.get("provider")
+
+    print("\n==============================")
+    print("NEW REQUEST")
+    print("Title:", title_id)
+    print("Provider:", provider)
+
     file_path = os.path.join(
         os.path.dirname(__file__),
         "subs",
         f"{title_id}.srt"
     )
 
-    # Cazul rapid: fișierul există deja (cache permanent) — servim direct,
-    # fără să atingem lock-ul sau API-ul Gemini.
+    print("File path:", file_path)
+    print("Exists before:", os.path.exists(file_path))
+
+    # dacă există deja
     if os.path.exists(file_path):
+        print("Serving cached subtitle.")
         return send_file(
             file_path,
             mimetype="text/plain",
@@ -319,17 +543,28 @@ def get_title(title_id):
 
     lock = get_lock_for(title_id)
 
-    # Încercăm să prindem lock-ul fără să blocăm. Dacă altcineva îl ține deja,
-    # înseamnă că exact acest titlu se traduce chiar acum — nu mai pornim
-    # o a doua traducere, ci așteptăm să se termine prima.
     acquired = lock.acquire(blocking=False)
 
     if not acquired:
-        set_status(title_id, message=get_status(title_id).get("message", "Traducere deja în curs…"))
-        lock.acquire()  # blocăm până se eliberează (adică până termină celălalt request)
+        print("Lock already acquired, waiting...")
+
+        set_status(
+            title_id,
+            message=get_status(title_id).get(
+                "message",
+                "Traducere deja în curs..."
+            )
+        )
+
+        lock.acquire()
         lock.release()
 
+        print("Lock released.")
+
+        print("Exists after waiting:", os.path.exists(file_path))
+
         if os.path.exists(file_path):
+            print("Serving generated subtitle.")
             return send_file(
                 file_path,
                 mimetype="text/plain",
@@ -337,23 +572,58 @@ def get_title(title_id):
                 download_name=f"{title_id}.srt"
             )
 
+        print("Subtitle still missing.")
         return jsonify({
             "ok": False,
             "message": "Title not found"
         }), 404
 
     try:
-        get_subs(title_id)
-    except Exception:
+        print("Lock acquired.")
+
+        if provider == "opensubtitles":
+            print("Using OpenSubtitles provider")
+            get_subs_opensubs(title_id)
+
+        elif provider == "subsro":
+            print("Using Subs.ro provider")
+            get_subs_ro(title_id)
+
+        else:
+            print("Invalid provider:", provider)
+            return jsonify({
+                "ok": False,
+                "message": "Incorrect provider"
+            }), 400
+
+        print("Provider function finished.")
+
+    except Exception as e:
+        import traceback
+
+        print("\n========== EXCEPTION ==========")
+        traceback.print_exc()
+        print("Exception:", e)
+        print("===============================\n")
+
         return jsonify({
             "ok": False,
-            "message": "Title not found"
-        }), 404
+            "message": str(e)
+        }), 500
+
     finally:
+        print("Clearing status")
         clear_status(title_id)
+
+        print("Releasing lock")
         lock.release()
 
+    print("Checking generated file...")
+    print("Exists:", os.path.exists(file_path))
+
     if os.path.exists(file_path):
+        print("SUCCESS -> sending subtitle")
+
         return send_file(
             file_path,
             mimetype="text/plain",
@@ -361,16 +631,17 @@ def get_title(title_id):
             download_name=f"{title_id}.srt"
         )
 
+    print("FAILED -> file was never created")
+    print("==============================\n")
+
     return jsonify({
         "ok": False,
-        "message": "Title not found"
+        "message": "Subtitle file was not created"
     }), 404
 
 
 @app.route('/api/titles/<string:title_id>/status')
 def get_title_status(title_id):
-    """Endpoint opțional pentru progres real (de folosit de frontend prin polling,
-    în loc de un timer aproximativ)."""
     file_path = os.path.join(subs_dir, f"{title_id}.srt")
 
     if os.path.exists(file_path):

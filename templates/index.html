@@ -163,6 +163,66 @@
     font-family:'JetBrains Mono', monospace;
   }
 
+  /* --- selector provider --- */
+  .provider-group{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:4px;
+  }
+
+  .provider-option{
+    position:relative;
+  }
+
+  .provider-option input{
+    position:absolute;
+    opacity:0;
+    width:0;
+    height:0;
+  }
+
+  .provider-option label{
+    margin:0;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:2px;
+    padding:10px 12px;
+    background:var(--ink);
+    border:1px solid rgba(242,236,225,.14);
+    border-radius:var(--radius);
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+
+  .provider-option label .p-name{
+    font-family:'Bebas Neue', sans-serif;
+    font-size:17px;
+    letter-spacing:.03em;
+    color:var(--paper);
+    text-transform:none;
+  }
+
+  .provider-option label .p-desc{
+    font-family:'Work Sans', sans-serif;
+    font-size:11px;
+    letter-spacing:normal;
+    text-transform:none;
+    color:var(--paper-dim);
+  }
+
+  .provider-option input:checked + label{
+    border-color:var(--marquee);
+    background:rgba(232,185,77,.08);
+  }
+  .provider-option input:checked + label .p-name{
+    color:var(--marquee);
+  }
+  .provider-option input:focus-visible + label{
+    box-shadow:0 0 0 3px rgba(232,185,77,.18);
+  }
+
   .field{
     position:relative;
     display:flex;
@@ -256,7 +316,6 @@
 
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  /* --- progress panel (apare doar cât timp durează request-ul) --- */
   .progress{
     display:none;
     margin-top:14px;
@@ -298,7 +357,6 @@
     position:relative;
   }
 
-  /* mod "determinat" — folosit când avem current_chunk/total_chunks reale */
   .progress-bar-fill{
     height:100%;
     border-radius:2px;
@@ -307,8 +365,6 @@
     transition:width .5s ease;
   }
 
-  /* mod "indeterminat" — folosit cât nu avem încă un procent real
-     (ex: în etapa de căutare/descărcare, înainte de splitting) */
   .progress-bar.indeterminate .progress-bar-fill{
     width:30%;
     animation:slide 1.6s ease-in-out infinite;
@@ -359,6 +415,27 @@
 
     <form class="ticket" id="lookupForm" novalidate>
       <div class="sprockets top" aria-hidden="true"></div>
+
+      <label>
+        <span>Sursă subtitrare</span>
+      </label>
+
+      <div class="provider-group" role="radiogroup" aria-label="Sursă subtitrare">
+        <div class="provider-option">
+          <input type="radio" name="provider" id="providerOpenSubtitles" value="opensubtitles" checked>
+          <label for="providerOpenSubtitles">
+            <span class="p-name">OpenSubtitles</span>
+            <span class="p-desc">bază mare, engleză</span>
+          </label>
+        </div>
+        <div class="provider-option">
+          <input type="radio" name="provider" id="providerSubsRo" value="subsro">
+          <label for="providerSubsRo">
+            <span class="p-name">Subs.ro</span>
+            <span class="p-desc">robust</span>
+          </label>
+        </div>
+      </div>
 
       <label for="imdbId">
         <span>ID IMDb</span>
@@ -425,6 +502,7 @@
   const progressBarFill = progressBar.querySelector('.progress-bar-fill');
   const cancelWrap = document.getElementById('cancelWrap');
   const cancelBtn = document.getElementById('cancelBtn');
+  const providerInputs = document.querySelectorAll('input[name="provider"]');
 
   const defaultHint = hint.textContent;
 
@@ -435,8 +513,6 @@
   let abortController = null;
   let startedAt = 0;
 
-  // Mesaje default pentru fiecare etapă, folosite ca fallback dacă serverul
-  // nu trimite un "message" explicit pentru status-ul curent.
   const STAGE_LABELS = {
     idle: 'Se pregătește căutarea…',
     searching: 'Se caută subtitrarea în limba engleză…',
@@ -446,6 +522,11 @@
     saving: 'Se salvează fișierul final…',
     done: 'Gata — se pregătește descărcarea…',
   };
+
+  function getSelectedProvider(){
+    const checked = document.querySelector('input[name="provider"]:checked');
+    return checked ? checked.value : 'opensubtitles';
+  }
 
   function formatTime(sec){
     const m = Math.floor(sec / 60);
@@ -520,13 +601,12 @@
     } else if(status.stage === 'done'){
       setProgressBar(100);
     } else {
-      // etape fără procent cunoscut (searching, downloading, splitting, saving)
       setProgressBar(null);
     }
   }
 
-  function pollStatus(id){
-    fetch(`/api/titles/${id}/status`)
+  function pollStatus(id, provider){
+    fetch(`/api/titles/${id}/status?provider=${encodeURIComponent(provider)}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if(data) applyStatus(data);
@@ -534,7 +614,7 @@
       .catch(() => { /* nu blocăm UI-ul dacă polling-ul dă eroare ocazional */ });
   }
 
-  function startProgress(id){
+  function startProgress(id, provider){
     progress.classList.add('open');
     cancelWrap.classList.add('open');
     startedAt = Date.now();
@@ -546,9 +626,8 @@
       progressTime.textContent = formatTime(elapsed);
     }, 1000);
 
-    // primul poll imediat, apoi la interval regulat
-    pollStatus(id);
-    statusInterval = setInterval(() => pollStatus(id), STATUS_POLL_MS);
+    pollStatus(id, provider);
+    statusInterval = setInterval(() => pollStatus(id, provider), STATUS_POLL_MS);
   }
 
   function stopProgress(){
@@ -567,6 +646,7 @@
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const id = extractId(input.value);
+    const provider = getSelectedProvider();
 
     if(!id){
       fieldWrap.classList.add('error');
@@ -581,11 +661,12 @@
     btn.classList.add('loading');
     btn.disabled = true;
     input.disabled = true;
+    providerInputs.forEach(el => el.disabled = true);
 
     abortController = new AbortController();
-    startProgress(id);
+    startProgress(id, provider);
 
-    fetch(`/api/titles/${id}`, { signal: abortController.signal })
+    fetch(`/api/titles/${id}?provider=${encodeURIComponent(provider)}`, { signal: abortController.signal })
       .then(async response => {
         if (!response.ok) {
           let message = 'Nu s-a găsit niciun fișier de subtitrări pentru acest ID.';
@@ -633,6 +714,7 @@
         btn.classList.remove('loading');
         btn.disabled = false;
         input.disabled = false;
+        providerInputs.forEach(el => el.disabled = false);
         stopProgress();
       });
   });
