@@ -3,20 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Căutare titlu — IMDb ID</title>
+<title>Subtitrări AI — track EN → RO</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&family=Work+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
   :root{
-    --ink:#171418;
-    --ink-2:#211c22;
-    --paper:#f2ece1;
-    --paper-dim:#c9c0ae;
-    --marquee:#e8b94d;
-    --marquee-dim:#a9812f;
-    --velvet:#7a2b34;
-    --teal:#2c4a48;
-    --radius:2px;
+    --bg-0:#0a0c0f;
+    --bg-1:#12151a;
+    --bg-2:#1a1e25;
+    --line:#252a32;
+    --line-soft:#1d222a;
+    --text:#e6e9ec;
+    --text-dim:#838b96;
+    --text-faint:#4d545e;
+
+    --track-en:#57c7b8;
+    --track-en-dim:#2f6961;
+    --track-ro:#e8934a;
+    --track-ro-dim:#7a5327;
+
+    --ok:#6cc576;
+    --danger:#e2685c;
+
+    --radius:3px;
   }
 
   *{ box-sizing:border-box; }
@@ -24,119 +33,143 @@
   html,body{
     height:100%;
     margin:0;
-    background:
-      radial-gradient(ellipse at 50% -10%, #2a2430 0%, var(--ink) 55%),
-      var(--ink);
-    color:var(--paper);
-    font-family:'Work Sans', sans-serif;
+    background:var(--bg-0);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     justify-content:center;
-    padding:32px 18px;
+    padding:48px 18px;
   }
 
   body::before{
     content:"";
     position:fixed; inset:0;
     pointer-events:none;
-    opacity:.06;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   .stage{
     width:100%;
-    max-width:420px;
+    max-width:460px;
   }
 
-  .eyebrow{
-    font-family:'JetBrains Mono', monospace;
+  .track-header{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
     font-size:11px;
-    letter-spacing:.28em;
+    letter-spacing:.14em;
     text-transform:uppercase;
-    color:var(--marquee);
-    text-align:center;
-    margin:0 0 10px;
+    color:var(--text-dim);
+    margin-bottom:18px;
   }
+  .track-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 9px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--bg-1);
+  }
+  .track-dot{
+    width:6px; height:6px;
+    border-radius:50%;
+    flex-shrink:0;
+  }
+  .track-chip.en .track-dot{ background:var(--track-en); box-shadow:0 0 6px var(--track-en); }
+  .track-chip.ro .track-dot{ background:var(--track-ro); box-shadow:0 0 6px var(--track-ro); }
+  .track-arrow{ color:var(--text-faint); font-size:12px; }
 
   h1{
-    font-family:'Bebas Neue', sans-serif;
-    font-size:clamp(34px, 8vw, 46px);
-    letter-spacing:.04em;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(28px, 6.5vw, 36px);
+    letter-spacing:-.01em;
     text-align:center;
-    margin:0 0 6px;
-    color:var(--paper);
-    text-shadow:0 0 24px rgba(232,185,77,.18);
+    margin:0 0 8px;
+    color:var(--text);
   }
 
   .sub{
     text-align:center;
-    color:var(--paper-dim);
+    color:var(--text-dim);
     font-size:14px;
-    margin:0 0 28px;
-    line-height:1.5;
+    line-height:1.55;
+    margin:0 0 26px;
   }
 
-  .ticket{
-    position:relative;
-    background:var(--ink-2);
-    border:1px solid rgba(232,185,77,.18);
-    padding:30px 28px 26px;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,.7);
+  .mode-switch{
+    display:flex;
+    border-bottom:1px solid var(--line);
+    margin-bottom:0;
+  }
+  .mode-switch button{
+    all:unset;
+    flex:1;
+    text-align:center;
+    cursor:pointer;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    padding:12px 8px;
+    border-bottom:2px solid transparent;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .mode-switch button:hover{ color:var(--text); }
+  .mode-switch button.active{
+    color:var(--text);
+    border-bottom-color:var(--track-en);
+  }
+  .mode-switch button#tabUpload.active{
+    border-bottom-color:var(--track-ro);
   }
 
-  .sprockets{
-    height:14px;
-    background-image:repeating-linear-gradient(
-      90deg,
-      transparent 0 6px,
-      var(--ink) 6px 16px
-    );
+  .panel{
     position:relative;
+    background:var(--bg-1);
+    border:1px solid var(--line);
+    border-top:none;
+    border-radius:0 0 var(--radius) var(--radius);
+    padding:26px 24px 24px;
   }
-  .sprockets::before{
+  .panel.hidden{ display:none; }
+
+  .panel::before{
     content:"";
     position:absolute;
-    inset:0;
-    background-image:radial-gradient(circle, var(--ink) 3.5px, transparent 3.6px);
-    background-size:16px 14px;
-    background-position:3px 0;
+    top:-1px; left:0;
+    width:3px;
+    height:calc(100% + 1px);
+    background:var(--track-en);
+    border-radius:0 0 0 var(--radius);
   }
-  .sprockets.top{ background-color:var(--marquee-dim); }
-  .sprockets.bottom{ background-color:var(--velvet); }
-  .sprockets.top::before,
-  .sprockets.bottom::before{ background-image:radial-gradient(circle, var(--ink) 3.5px, transparent 3.6px); }
-
-  .ticket::after,
-  .ticket::before{
-    content:"";
-    position:absolute;
-    width:22px; height:22px;
-    background:var(--ink);
-    border-radius:50%;
-    top:50%;
-    transform:translateY(-50%);
-  }
-  .ticket::before{ left:-11px; }
-  .ticket::after{ right:-11px; }
+  #uploadForm.panel::before{ background:var(--track-ro); }
 
   label{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    letter-spacing:.16em;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
     text-transform:uppercase;
-    color:var(--marquee);
-    margin:22px 0 10px;
+    color:var(--text-dim);
+    margin:0 0 10px;
   }
 
   .help-toggle{
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
     letter-spacing:normal;
     text-transform:none;
-    color:var(--paper-dim);
+    color:var(--text-faint);
     background:none;
     border:none;
     padding:0;
@@ -144,48 +177,45 @@
     text-decoration:underline;
     text-underline-offset:2px;
   }
-  .help-toggle:hover{ color:var(--marquee); }
+  .help-toggle:hover{ color:var(--track-en); }
+  #uploadHelpToggle:hover{ color:var(--track-ro); }
 
   .help-box{
     display:none;
-    font-size:12.5px;
-    color:var(--paper-dim);
-    background:var(--ink);
-    border:1px solid rgba(242,236,225,.1);
+    font-size:12px;
+    color:var(--text-dim);
+    background:var(--bg-0);
+    border:1px solid var(--line-soft);
     border-radius:var(--radius);
-    padding:10px 12px;
-    margin:-2px 0 14px;
-    line-height:1.55;
+    padding:11px 13px;
+    margin:0 0 14px;
+    line-height:1.6;
   }
   .help-box.open{ display:block; }
   .help-box code{
-    color:var(--marquee);
-    font-family:'JetBrains Mono', monospace;
+    color:var(--track-en);
+    font-family:'IBM Plex Mono', monospace;
+    background:var(--bg-1);
+    padding:1px 4px;
+    border-radius:2px;
   }
+  #uploadHelpBox code{ color:var(--track-ro); }
 
   .field{
     position:relative;
     display:flex;
     align-items:center;
-    background:var(--ink);
-    border:1px solid rgba(242,236,225,.14);
+    background:var(--bg-0);
+    border:1px solid var(--line);
     border-radius:var(--radius);
-    transition:border-color .2s ease, box-shadow .2s ease;
+    transition:border-color .15s ease, box-shadow .15s ease;
   }
   .field:focus-within{
-    border-color:var(--marquee);
-    box-shadow:0 0 0 3px rgba(232,185,77,.12);
+    border-color:var(--track-en);
+    box-shadow:0 0 0 3px rgba(87,199,184,.14);
   }
-  .field.error{ border-color:#e07a6a; }
-  .field.ok{ border-color:#7fbf8f; }
-
-  .field .tag{
-    font-family:'JetBrains Mono', monospace;
-    font-size:14px;
-    color:var(--paper-dim);
-    padding:14px 0 14px 16px;
-    user-select:none;
-  }
+  .field.error{ border-color:var(--danger); }
+  .field.ok{ border-color:var(--ok); }
 
   input#imdbId{
     flex:1;
@@ -193,59 +223,123 @@
     background:transparent;
     border:0;
     outline:0;
-    color:var(--paper);
-    font-family:'JetBrains Mono', monospace;
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
     font-size:15px;
-    letter-spacing:.03em;
-    padding:14px 16px 14px 4px;
+    letter-spacing:.02em;
+    padding:13px 14px;
   }
-  input#imdbId::placeholder{ color:#5c5560; }
+  input#imdbId::placeholder{ color:var(--text-faint); }
 
   .field-icon{
-    padding-right:14px;
-    font-size:15px;
+    padding-right:13px;
+    font-size:14px;
     line-height:1;
     display:none;
+    font-family:'IBM Plex Mono', monospace;
   }
-  .field.error .field-icon.err{ display:block; color:#e07a6a; }
-  .field.ok .field-icon.good{ display:block; color:#7fbf8f; }
+  .field.error .field-icon.err{ display:block; color:var(--danger); }
+  .field.ok .field-icon.good{ display:block; color:var(--ok); }
 
   .hint{
-    font-size:12px;
-    color:var(--paper-dim);
+    font-size:11.5px;
+    color:var(--text-dim);
     margin:8px 2px 0;
-    min-height:16px;
+    min-height:15px;
     line-height:1.5;
+    font-family:'IBM Plex Mono', monospace;
   }
-  .hint.error{ color:#e07a6a; }
-  .hint.ok{ color:#7fbf8f; }
+  .hint.error{ color:var(--danger); }
+  .hint.ok{ color:var(--ok); }
 
-  button{
-    width:100%;
-    margin-top:24px;
-    padding:15px 20px;
-    border:none;
+  .dropzone{
+    position:relative;
+    background:var(--bg-0);
+    border:1px dashed var(--line);
     border-radius:var(--radius);
-    background:linear-gradient(180deg, var(--marquee), var(--marquee-dim));
-    color:#1a1408;
-    font-family:'Bebas Neue', sans-serif;
-    font-size:19px;
-    letter-spacing:.08em;
+    padding:24px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .dropzone:hover,
+  .dropzone.dragover{
+    border-color:var(--track-ro);
+    background:rgba(232,147,74,.05);
+  }
+  .dropzone.error{ border-color:var(--danger); }
+  .dropzone.ok{ border-color:var(--ok); border-style:solid; }
+
+  .dropzone input[type="file"]{
+    position:absolute;
+    inset:0;
+    opacity:0;
+    cursor:pointer;
+  }
+
+  .dropzone-icon{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:30px; height:30px;
+    border-radius:50%;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    color:var(--track-ro);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    margin-bottom:10px;
+  }
+
+  .dropzone-text{
+    font-size:12.5px;
+    color:var(--text-dim);
+  }
+
+  .dropzone-text strong{
+    color:var(--text);
+    font-weight:600;
+  }
+
+  .dropzone-filename{
+    margin-top:9px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--text);
+    word-break:break-all;
+  }
+
+  button[type="submit"]{
+    width:100%;
+    margin-top:22px;
+    padding:14px 18px;
+    border:1px solid transparent;
+    border-radius:var(--radius);
+    background:var(--track-en);
+    color:#07211d;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:.01em;
     cursor:pointer;
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:10px;
-    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    gap:9px;
+    transition:filter .15s ease, transform .1s ease;
   }
-  button:hover{ transform:translateY(-1px); box-shadow:0 10px 24px -10px rgba(232,185,77,.5); }
-  button:active{ transform:translateY(0); }
-  button:disabled{ opacity:.85; cursor:progress; }
+  #uploadForm button[type="submit"]{
+    background:var(--track-ro);
+    color:#2b1707;
+  }
+  button[type="submit"]:hover{ filter:brightness(1.08); }
+  button[type="submit"]:active{ transform:translateY(1px); }
+  button[type="submit"]:disabled{ filter:grayscale(.2); opacity:.85; cursor:progress; }
 
   .reel{
-    width:16px; height:16px;
+    width:14px; height:14px;
     border-radius:50%;
-    border:2px solid #1a1408;
+    border:2px solid currentColor;
     border-top-color:transparent;
     display:none;
     animation:spin .7s linear infinite;
@@ -256,109 +350,146 @@
 
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  /* --- progress panel (apare doar cât timp durează request-ul) --- */
   .progress{
     display:none;
-    margin-top:14px;
+    margin-top:16px;
     padding:14px 14px 12px;
-    background:var(--ink);
-    border:1px solid rgba(232,185,77,.15);
+    background:var(--bg-0);
+    border:1px solid var(--line-soft);
     border-radius:var(--radius);
   }
   .progress.open{ display:block; }
 
   .progress-row{
     display:flex;
-    align-items:center;
+    align-items:baseline;
     justify-content:space-between;
     gap:10px;
   }
 
   .progress-msg{
-    font-size:12.5px;
-    color:var(--paper);
+    font-size:12px;
+    color:var(--text);
     line-height:1.5;
     flex:1;
   }
 
   .progress-time{
-    font-family:'JetBrains Mono', monospace;
+    font-family:'IBM Plex Mono', monospace;
     font-size:12px;
-    color:var(--marquee);
+    color:var(--track-en);
     white-space:nowrap;
   }
+  #uploadProgressTime{ color:var(--track-ro); }
 
   .progress-bar{
-    height:3px;
-    width:100%;
-    background:rgba(242,236,225,.1);
-    border-radius:2px;
-    margin-top:10px;
-    overflow:hidden;
     position:relative;
+    height:5px;
+    width:100%;
+    background:var(--bg-2);
+    border-radius:2px;
+    margin-top:12px;
+    overflow:hidden;
+  }
+  .progress-bar::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,.06) 0 1px,
+      transparent 1px 41px
+    );
+    pointer-events:none;
   }
 
-  /* mod "determinat" — folosit când avem current_chunk/total_chunks reale */
   .progress-bar-fill{
     height:100%;
     border-radius:2px;
-    background:linear-gradient(90deg, var(--marquee-dim), var(--marquee));
+    background:var(--track-en);
     width:8%;
     transition:width .5s ease;
+    position:relative;
+  }
+  #uploadProgressBar .progress-bar-fill{ background:var(--track-ro); }
+
+  .progress-bar-fill::after{
+    content:"";
+    position:absolute;
+    right:-1px; top:50%;
+    transform:translate(50%, -50%);
+    width:9px; height:9px;
+    border-radius:50%;
+    background:inherit;
+    box-shadow:0 0 0 3px var(--bg-0), 0 0 8px rgba(87,199,184,.6);
+  }
+  #uploadProgressBar .progress-bar-fill::after{
+    box-shadow:0 0 0 3px var(--bg-0), 0 0 8px rgba(232,147,74,.6);
   }
 
-  /* mod "indeterminat" — folosit cât nu avem încă un procent real
-     (ex: în etapa de căutare/descărcare, înainte de splitting) */
   .progress-bar.indeterminate .progress-bar-fill{
-    width:30%;
-    animation:slide 1.6s ease-in-out infinite;
+    width:26%;
+    animation:scrub 1.5s ease-in-out infinite;
     transition:none;
   }
-  @keyframes slide{
-    0%{ transform:translateX(-100%); }
-    100%{ transform:translateX(330%); }
+  @keyframes scrub{
+    0%{ transform:translateX(-10%); }
+    50%{ transform:translateX(160%); }
+    100%{ transform:translateX(-10%); }
   }
 
   .cancel-link{
     display:none;
     text-align:center;
-    margin-top:10px;
+    margin-top:11px;
   }
   .cancel-link.open{ display:block; }
   .cancel-link button{
     all:unset;
     cursor:pointer;
-    font-family:'JetBrains Mono', monospace;
+    font-family:'IBM Plex Mono', monospace;
     font-size:11px;
-    color:var(--paper-dim);
+    color:var(--text-faint);
     text-decoration:underline;
     text-underline-offset:2px;
   }
-  .cancel-link button:hover{ color:#e07a6a; }
+  .cancel-link button:hover{ color:var(--danger); }
 
   .footnote{
     text-align:center;
-    font-size:12px;
-    color:var(--paper-dim);
-    margin-top:18px;
-    font-family:'JetBrains Mono', monospace;
-    letter-spacing:.04em;
+    font-size:10.5px;
+    color:var(--text-faint);
+    margin-top:20px;
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:.1em;
+    text-transform:uppercase;
   }
 
   @media (prefers-reduced-motion: reduce){
-    button, .field, .reel, .progress-bar-fill{ transition:none; animation:none; }
+    button, .field, .reel, .progress-bar-fill, .dropzone{ transition:none; animation:none; }
   }
 </style>
 </head>
 <body>
 
   <div class="stage">
-    <p class="eyebrow">SUBTITRARI AI</p>
-    <h1>Caută titlul</h1>
-    <p class="sub">Introdu ID-ul IMDb al filmului sau serialului pentru a-i prelua și traduce subtitrarea.</p>
 
-    <form class="ticket" id="lookupForm" novalidate>
-      <div class="sprockets top" aria-hidden="true"></div>
+    <div class="track-header">
+      <span class="track-chip en"><span class="track-dot"></span>EN</span>
+      <span class="track-arrow">→</span>
+      <span class="track-chip ro"><span class="track-dot"></span>RO</span>
+    </div>
+
+    <h1>Adu subtitrarea</h1>
+    <p class="sub">Caută un titlu după ID-ul IMDb sau încarcă direct fișierul tău .srt — AI-ul produce track-ul în română.</p>
+
+    <div class="mode-switch" role="tablist">
+      <button type="button" id="tabSearch" class="active" role="tab" aria-selected="true">Caută după ID</button>
+      <button type="button" id="tabUpload" role="tab" aria-selected="false">Încarcă fișier</button>
+    </div>
+
+    <!-- ================= FORMULAR 1: CĂUTARE DUPĂ IMDb ID (flux original) ================= -->
+    <form class="panel" id="lookupForm" novalidate>
 
       <label for="imdbId">
         <span>ID IMDb</span>
@@ -380,7 +511,6 @@
           autocomplete="off"
           spellcheck="false"
           aria-describedby="idHint"
-          required
         >
         <span class="field-icon err" aria-hidden="true">✕</span>
         <span class="field-icon good" aria-hidden="true">✓</span>
@@ -404,14 +534,102 @@
         <button type="button" id="cancelBtn">renunță la căutare</button>
       </div>
 
-      <div class="sprockets bottom" aria-hidden="true"></div>
     </form>
 
-    <p class="footnote">— START —</p>
+    <!-- ================= FORMULAR 2: UPLOAD MANUAL .SRT (flux nou) ================= -->
+    <form class="panel hidden" id="uploadForm" novalidate>
+
+      <label for="srtFile">
+        <span>Fișier .srt</span>
+        <button type="button" class="help-toggle" id="uploadHelpToggle">ce se verifică?</button>
+      </label>
+
+      <div class="help-box" id="uploadHelpBox">
+        Înainte să trimitem fișierul spre traducere, verificăm automat:<br>
+        — extensia și dimensiunea (max. 2MB)<br>
+        — encoding-ul textului<br>
+        — structura .srt (numerotare, timestamp-uri, text)<br><br>
+        Dacă ceva nu corespunde, primești un mesaj clar și fișierul nu ajunge la AI.
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="srtFile" name="file" accept=".srt">
+        <span class="dropzone-icon" aria-hidden="true">＋</span>
+        <div class="dropzone-text"><strong>Alege un fișier</strong> sau trage-l aici</div>
+        <div class="dropzone-filename" id="dropzoneFilename"></div>
+      </div>
+      <p class="hint" id="uploadHint">Acceptăm doar fișiere .srt, până la 2MB.</p>
+
+      <button type="submit" id="uploadBtn">
+        <span class="reel" aria-hidden="true"></span>
+        <span class="btn-label">Traduce fișierul</span>
+      </button>
+
+      <div class="progress" id="uploadProgress">
+        <div class="progress-row">
+          <span class="progress-msg" id="uploadProgressMsg">Se verifică fișierul…</span>
+          <span class="progress-time" id="uploadProgressTime">0:00</span>
+        </div>
+        <div class="progress-bar indeterminate" id="uploadProgressBar"><div class="progress-bar-fill"></div></div>
+      </div>
+
+    </form>
+
+    <p class="footnote">subtitrari-ai · track render</p>
   </div>
 
 <script>
-  const form = document.getElementById('lookupForm');
+  // ======================= elemente comune / utilitare =======================
+
+  const STAGE_LABELS = {
+    idle: 'Se pregătește…',
+    queued: 'Fișierul a trecut de verificare, se pregătește traducerea…',
+    searching: 'Se caută subtitrarea în limba engleză…',
+    downloading: 'Se descarcă subtitrarea originală…',
+    splitting: 'Se împarte subtitrarea în bucăți…',
+    translating: 'Se traduce în română…',
+    saving: 'Se salvează fișierul final…',
+    done: 'Gata — se pregătește descărcarea…',
+    error: 'A apărut o eroare la traducere.',
+  };
+
+  function formatTime(sec){
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function triggerDownload(blob, filename){
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ======================= tab switcher =======================
+  const tabSearch = document.getElementById('tabSearch');
+  const tabUpload = document.getElementById('tabUpload');
+  const lookupForm = document.getElementById('lookupForm');
+  const uploadForm = document.getElementById('uploadForm');
+
+  function activateTab(which){
+    const isSearch = which === 'search';
+    tabSearch.classList.toggle('active', isSearch);
+    tabUpload.classList.toggle('active', !isSearch);
+    tabSearch.setAttribute('aria-selected', String(isSearch));
+    tabUpload.setAttribute('aria-selected', String(!isSearch));
+    lookupForm.classList.toggle('hidden', !isSearch);
+    uploadForm.classList.toggle('hidden', isSearch);
+  }
+
+  tabSearch.addEventListener('click', () => activateTab('search'));
+  tabUpload.addEventListener('click', () => activateTab('upload'));
+
+  // ======================= FORMULAR 1: căutare IMDb (neschimbat față de original) =======================
   const input = document.getElementById('imdbId');
   const fieldWrap = document.getElementById('fieldWrap');
   const hint = document.getElementById('idHint');
@@ -434,24 +652,6 @@
   let statusInterval = null;
   let abortController = null;
   let startedAt = 0;
-
-  // Mesaje default pentru fiecare etapă, folosite ca fallback dacă serverul
-  // nu trimite un "message" explicit pentru status-ul curent.
-  const STAGE_LABELS = {
-    idle: 'Se pregătește căutarea…',
-    searching: 'Se caută subtitrarea în limba engleză…',
-    downloading: 'Se descarcă subtitrarea originală…',
-    splitting: 'Se împarte subtitrarea în bucăți…',
-    translating: 'Se traduce în română…',
-    saving: 'Se salvează fișierul final…',
-    done: 'Gata — se pregătește descărcarea…',
-  };
-
-  function formatTime(sec){
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  }
 
   function extractId(raw){
     const v = raw.trim();
@@ -492,36 +692,35 @@
     helpToggle.textContent = helpBox.classList.contains('open') ? 'ascunde' : 'unde îl găsesc?';
   });
 
-  function setProgressBar(percent){
+  function setProgressBar(fillEl, barEl, percent){
     if(percent === null){
-      progressBar.classList.add('indeterminate');
-      progressBarFill.style.width = '';
+      barEl.classList.add('indeterminate');
+      fillEl.style.width = '';
     } else {
-      progressBar.classList.remove('indeterminate');
-      progressBarFill.style.width = `${Math.max(4, Math.min(100, percent))}%`;
+      barEl.classList.remove('indeterminate');
+      fillEl.style.width = `${Math.max(4, Math.min(100, percent))}%`;
     }
   }
 
-  function applyStatus(status){
+  function applyStatus(status, msgEl, fillEl, barEl){
     if(!status || status.stage === 'idle'){
-      progressMsg.textContent = STAGE_LABELS.idle;
-      setProgressBar(null);
+      msgEl.textContent = STAGE_LABELS.idle;
+      setProgressBar(fillEl, barEl, null);
       return;
     }
 
     const label = status.message || STAGE_LABELS[status.stage] || 'Se procesează…';
-    progressMsg.textContent = label;
+    msgEl.textContent = label;
 
     if(status.stage === 'translating' && status.total_chunks){
       const done = status.current_chunk || 0;
       const percent = (done / status.total_chunks) * 100;
-      setProgressBar(percent);
-      progressMsg.textContent = `${label} (bucata ${done}/${status.total_chunks})`;
+      setProgressBar(fillEl, barEl, percent);
+      msgEl.textContent = `${label} (bucata ${done}/${status.total_chunks})`;
     } else if(status.stage === 'done'){
-      setProgressBar(100);
+      setProgressBar(fillEl, barEl, 100);
     } else {
-      // etape fără procent cunoscut (searching, downloading, splitting, saving)
-      setProgressBar(null);
+      setProgressBar(fillEl, barEl, null);
     }
   }
 
@@ -529,7 +728,7 @@
     fetch(`/api/titles/${id}/status`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if(data) applyStatus(data);
+        if(data) applyStatus(data, progressMsg, progressBarFill, progressBar);
       })
       .catch(() => { /* nu blocăm UI-ul dacă polling-ul dă eroare ocazional */ });
   }
@@ -539,14 +738,13 @@
     cancelWrap.classList.add('open');
     startedAt = Date.now();
     progressTime.textContent = '0:00';
-    applyStatus({ stage: 'idle' });
+    applyStatus({ stage: 'idle' }, progressMsg, progressBarFill, progressBar);
 
     timerInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
       progressTime.textContent = formatTime(elapsed);
     }, 1000);
 
-    // primul poll imediat, apoi la interval regulat
     pollStatus(id);
     statusInterval = setInterval(() => pollStatus(id), STATUS_POLL_MS);
   }
@@ -564,7 +762,7 @@
     }
   });
 
-  form.addEventListener('submit', (e) => {
+  lookupForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const id = extractId(input.value);
 
@@ -602,17 +800,7 @@
         }
 
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        a.href = url;
-        a.download = `${id}.srt`;
-
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        URL.revokeObjectURL(url);
+        triggerDownload(blob, `${id}.srt`);
 
         fieldWrap.classList.remove('error');
         fieldWrap.classList.add('ok');
@@ -634,6 +822,233 @@
         btn.disabled = false;
         input.disabled = false;
         stopProgress();
+      });
+  });
+
+  // ======================= FORMULAR 2: upload manual .srt =======================
+  const uploadHelpToggle = document.getElementById('uploadHelpToggle');
+  const uploadHelpBox = document.getElementById('uploadHelpBox');
+  const dropzone = document.getElementById('dropzone');
+  const srtFile = document.getElementById('srtFile');
+  const dropzoneFilename = document.getElementById('dropzoneFilename');
+  const uploadHint = document.getElementById('uploadHint');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const uploadProgress = document.getElementById('uploadProgress');
+  const uploadProgressMsg = document.getElementById('uploadProgressMsg');
+  const uploadProgressTime = document.getElementById('uploadProgressTime');
+  const uploadProgressBar = document.getElementById('uploadProgressBar');
+  const uploadProgressBarFill = uploadProgressBar.querySelector('.progress-bar-fill');
+
+  const defaultUploadHint = uploadHint.textContent;
+
+  const MAX_CLIENT_BYTES = 2 * 1024 * 1024; // 2MB — validare rapidă client-side (server-ul re-validează oricum)
+
+  let uploadTimerInterval = null;
+  let uploadStatusInterval = null;
+  let uploadStartedAt = 0;
+  let selectedFile = null;
+
+  uploadHelpToggle.addEventListener('click', () => {
+    uploadHelpBox.classList.toggle('open');
+    uploadHelpToggle.textContent = uploadHelpBox.classList.contains('open') ? 'ascunde' : 'ce se verifică?';
+  });
+
+  function resetDropzoneState(){
+    dropzone.classList.remove('error', 'ok');
+  }
+
+  function validateFileClientSide(file){
+    if(!file){
+      return 'Niciun fișier selectat.';
+    }
+    if(!file.name.toLowerCase().endsWith('.srt')){
+      return 'Sunt acceptate doar fișiere cu extensia .srt.';
+    }
+    if(file.size === 0){
+      return 'Fișierul este gol.';
+    }
+    if(file.size > MAX_CLIENT_BYTES){
+      return 'Fișierul depășește dimensiunea maximă permisă (2MB).';
+    }
+    return null;
+  }
+
+  function handleFileSelection(file){
+    resetDropzoneState();
+    const error = validateFileClientSide(file);
+
+    if(error){
+      selectedFile = null;
+      dropzoneFilename.textContent = '';
+      dropzone.classList.add('error');
+      uploadHint.textContent = error;
+      uploadHint.className = 'hint error';
+      return;
+    }
+
+    selectedFile = file;
+    dropzoneFilename.textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+    dropzone.classList.add('ok');
+    uploadHint.textContent = 'Fișier valid — gata de trimis.';
+    uploadHint.className = 'hint ok';
+  }
+
+  srtFile.addEventListener('change', () => {
+    handleFileSelection(srtFile.files[0]);
+  });
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if(file){
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      srtFile.files = dt.files;
+      handleFileSelection(file);
+    }
+  });
+
+  function pollUploadStatus(jobId, onDone, onError){
+    fetch(`/api/jobs/${jobId}/status`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if(!data) return;
+        applyStatus(data, uploadProgressMsg, uploadProgressBarFill, uploadProgressBar);
+
+        if(data.stage === 'done'){
+          onDone();
+        } else if(data.stage === 'error'){
+          onError(data.message || 'Traducerea a eșuat.');
+        }
+      })
+      .catch(() => { /* ignorăm erori ocazionale de polling */ });
+  }
+
+  function startUploadProgress(){
+    uploadProgress.classList.add('open');
+    uploadStartedAt = Date.now();
+    uploadProgressTime.textContent = '0:00';
+    applyStatus({ stage: 'idle' }, uploadProgressMsg, uploadProgressBarFill, uploadProgressBar);
+
+    uploadTimerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - uploadStartedAt) / 1000);
+      uploadProgressTime.textContent = formatTime(elapsed);
+    }, 1000);
+  }
+
+  function stopUploadProgress(){
+    clearInterval(uploadTimerInterval);
+    clearInterval(uploadStatusInterval);
+    uploadProgress.classList.remove('open');
+  }
+
+  uploadForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const clientError = validateFileClientSide(selectedFile);
+    if(clientError){
+      dropzone.classList.add('error');
+      uploadHint.textContent = clientError;
+      uploadHint.className = 'hint error';
+      return;
+    }
+
+    uploadBtn.classList.add('loading');
+    uploadBtn.disabled = true;
+    uploadHint.textContent = 'Se trimite fișierul spre verificare…';
+    uploadHint.className = 'hint';
+    startUploadProgress();
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    fetch('/api/upload', { method: 'POST', body: formData })
+      .then(async response => {
+        const data = await response.json().catch(() => null);
+
+        if(!response.ok || !data || !data.ok){
+          const message = (data && data.message) || 'Fișierul nu a trecut de verificare.';
+          dropzone.classList.remove('ok');
+          dropzone.classList.add('error');
+          uploadHint.textContent = message;
+          uploadHint.className = 'hint error';
+          stopUploadProgress();
+          uploadBtn.classList.remove('loading');
+          uploadBtn.disabled = false;
+          return;
+        }
+
+        const jobId = data.job_id;
+
+        if(data.cached){
+          applyStatus({ stage: 'done' }, uploadProgressMsg, uploadProgressBarFill, uploadProgressBar);
+          const fileRes = await fetch(`/api/jobs/${jobId}/download`);
+          const blob = await fileRes.blob();
+          triggerDownload(blob, `${jobId}.srt`);
+
+          uploadHint.textContent = 'Am găsit deja o traducere pentru acest fișier — descărcare instant!';
+          uploadHint.className = 'hint ok';
+          stopUploadProgress();
+          uploadBtn.classList.remove('loading');
+          uploadBtn.disabled = false;
+          return;
+        }
+
+        uploadHint.textContent = 'Fișier acceptat — se traduce…';
+        uploadHint.className = 'hint';
+
+        uploadStatusInterval = setInterval(() => {
+          pollUploadStatus(
+            jobId,
+            async () => {
+              clearInterval(uploadStatusInterval);
+              try {
+                const fileRes = await fetch(`/api/jobs/${jobId}/download`);
+                const blob = await fileRes.blob();
+                triggerDownload(blob, `${jobId}.srt`);
+
+                dropzone.classList.add('ok');
+                uploadHint.textContent = 'Subtitrarea a fost tradusă și descărcată!';
+                uploadHint.className = 'hint ok';
+              } catch(err){
+                uploadHint.textContent = 'Traducerea s-a terminat, dar descărcarea a eșuat. Încearcă din nou.';
+                uploadHint.className = 'hint error';
+              } finally {
+                stopUploadProgress();
+                uploadBtn.classList.remove('loading');
+                uploadBtn.disabled = false;
+              }
+            },
+            (message) => {
+              clearInterval(uploadStatusInterval);
+              dropzone.classList.remove('ok');
+              dropzone.classList.add('error');
+              uploadHint.textContent = message;
+              uploadHint.className = 'hint error';
+              stopUploadProgress();
+              uploadBtn.classList.remove('loading');
+              uploadBtn.disabled = false;
+            }
+          );
+        }, 1500);
+      })
+      .catch(error => {
+        console.error(error);
+        uploadHint.textContent = 'A apărut o eroare de rețea. Verifică conexiunea și încearcă din nou.';
+        uploadHint.className = 'hint error';
+        stopUploadProgress();
+        uploadBtn.classList.remove('loading');
+        uploadBtn.disabled = false;
       });
   });
 </script>
