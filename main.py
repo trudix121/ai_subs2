@@ -8,6 +8,7 @@ import re
 import time
 import threading
 import hashlib
+import logging
 load_dotenv()
 
 try:
@@ -92,6 +93,41 @@ os.makedirs(cache_dir, exist_ok=True)
 class SubtitleValidationError(Exception):
     """Ridicată când fișierul încărcat de utilizator nu trece validarea."""
     pass
+
+
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(message)s"
+)
+request_logger = logging.getLogger("http")
+
+
+@app.before_request
+def log_request_start():
+    request._start_time = time.time()
+    request_logger.info(
+        f"--> {request.method} {request.path} "
+        f"| query={dict(request.args)} "
+        f"| ip={request.remote_addr} "
+        f"| ua={request.headers.get('User-Agent', '-')}"
+    )
+
+
+@app.after_request
+def log_request_end(response):
+    duration_ms = None
+    if hasattr(request, "_start_time"):
+        duration_ms = round((time.time() - request._start_time) * 1000, 1)
+
+    request_logger.info(
+        f"<-- {request.method} {request.path} "
+        f"| status={response.status_code} "
+        f"| duration={duration_ms}ms"
+    )
+
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -611,7 +647,8 @@ def manifest():
 
 
 @app.route("/subtitles/<string:content_type>/<string:video_id>.json")
-def subtitles(content_type, video_id):
+@app.route("/subtitles/<string:content_type>/<string:video_id>/<string:extra_params>.json")
+def subtitles(content_type, video_id, extra_params=None):
 
     if content_type not in ("movie", "series"):
         return jsonify({"subtitles": []})
@@ -622,16 +659,18 @@ def subtitles(content_type, video_id):
     if not imdb_id.startswith("tt"):
         return jsonify({"subtitles": []})
 
+    # extra_params arată ca "videoSize=4315566895&videoHash=edf79028d3e79586"
+    # — deocamdată doar îl logăm, nu-l folosim, dar e util pentru debugging
+    if extra_params:
+        request_logger.info(f"[subtitles] extra_params for {imdb_id}: {extra_params}")
+
     file_path = os.path.join(subs_dir, f"{imdb_id}.srt")
 
-    # Nu e cache-uită încă — o căutăm și o traducem chiar aici, sincron,
-    # nu printr-un alt call HTTP către altă rută.
     if not os.path.exists(file_path):
         lock = get_lock_for(imdb_id)
         acquired = lock.acquire(blocking=False)
 
         if not acquired:
-            # altcineva traduce deja exact acest titlu — așteptăm să termine
             lock.acquire()
             lock.release()
         else:
@@ -649,7 +688,7 @@ def subtitles(content_type, video_id):
     if not os.path.exists(file_path):
         return jsonify({"subtitles": []})
 
-    host = os.getenv("HOST_NAME")
+    host = os.getenv("REDIRECT_HOST_NAME")
     port = os.getenv("PORT")
 
     base_url = f"https://{host}"
@@ -665,7 +704,6 @@ def subtitles(content_type, video_id):
             }
         ]
     })
-
 
 @app.route("/stremio/subtitles/<string:imdb_id>.srt")
 def stremio_subtitle(imdb_id):
