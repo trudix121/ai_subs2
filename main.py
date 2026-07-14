@@ -8,6 +8,7 @@ import re
 import time
 import threading
 import hashlib
+import logging
 load_dotenv()
 
 try:
@@ -92,6 +93,41 @@ os.makedirs(cache_dir, exist_ok=True)
 class SubtitleValidationError(Exception):
     """Ridicată când fișierul încărcat de utilizator nu trece validarea."""
     pass
+
+
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(message)s"
+)
+request_logger = logging.getLogger("http")
+
+
+@app.before_request
+def log_request_start():
+    request._start_time = time.time()
+    request_logger.info(
+        f"--> {request.method} {request.path} "
+        f"| query={dict(request.args)} "
+        f"| ip={request.remote_addr} "
+        f"| ua={request.headers.get('User-Agent', '-')}"
+    )
+
+
+@app.after_request
+def log_request_end(response):
+    duration_ms = None
+    if hasattr(request, "_start_time"):
+        duration_ms = round((time.time() - request._start_time) * 1000, 1)
+
+    request_logger.info(
+        f"<-- {request.method} {request.path} "
+        f"| status={response.status_code} "
+        f"| duration={duration_ms}ms"
+    )
+
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +614,129 @@ def job_download(job_id):
         download_name=f"{job_id}.srt"
     )
 
+# Stremio Addon Routes
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    return response
+
+
+@app.route("/manifest.json")
+def manifest():
+    return jsonify({
+        "id": "trudx.aisubs",
+        "version": "1.0.0",
+        "name": "AI Romanian Subtitles",
+        "description": "Automatic Romanian subtitle translation using Gemini AI",
+        "resources": ["subtitles"],
+        "types": [
+            "movie",
+            "series"
+        ],
+        "idPrefixes": [
+            "tt"
+        ],
+        "catalogs": [],
+        "behaviorHints": {
+            "configurable": False
+        }
+    })
+
+
+@app.route("/subtitles/<string:content_type>/<string:video_id>.json")
+@app.route("/subtitles/<string:content_type>/<string:video_id>/<string:extra_params>.json")
+def subtitles(content_type, video_id, extra_params=None):
+
+    if content_type not in ("movie", "series"):
+        return jsonify({"subtitles": []})
+
+    parts = video_id.split(":")
+    imdb_id = parts[0]
+
+    if not imdb_id.startswith("tt"):
+        return jsonify({"subtitles": []})
+
+    # extra_params arată ca "videoSize=4315566895&videoHash=edf79028d3e79586"
+    # — deocamdată doar îl logăm, nu-l folosim, dar e util pentru debugging
+    if extra_params:
+        request_logger.info(f"[subtitles] extra_params for {imdb_id}: {extra_params}")
+
+    file_path = os.path.join(subs_dir, f"{imdb_id}.srt")
+
+    if not os.path.exists(file_path):
+        lock = get_lock_for(imdb_id)
+        acquired = lock.acquire(blocking=False)
+
+        if not acquired:
+            lock.acquire()
+            lock.release()
+        else:
+            try:
+                get_subs_from_imdb(imdb_id)
+            except Exception as e:
+                print(e)
+                lock.release()
+                return jsonify({"subtitles": []})
+            finally:
+                clear_status(imdb_id)
+                if lock.locked():
+                    lock.release()
+
+    if not os.path.exists(file_path):
+        return jsonify({"subtitles": []})
+
+    host = os.getenv("REDIRECT_HOST_NAME")
+    port = os.getenv("PORT")
+
+    base_url = f"https://{host}"
+    if port:
+        base_url += f":{port}"
+
+    return jsonify({
+        "subtitles": [
+            {
+                "id": imdb_id,
+                "lang": "ron",
+                "url": f"{base_url}/stremio/subtitles/{imdb_id}.srt"
+            }
+        ]
+    })
+
+@app.route("/stremio/subtitles/<string:imdb_id>.srt")
+def stremio_subtitle(imdb_id):
+    """Doar servește fișierul deja tradus — nu caută, nu traduce.
+    Presupune că /subtitles/<type>/<id>.json a fost apelat înainte
+    și a generat fișierul."""
+    file_path = os.path.join(subs_dir, f"{imdb_id}.srt")
+
+    print(f"[stremio_subtitle] request for {imdb_id} -> {file_path}")
+    print(f"[stremio_subtitle] exists: {os.path.exists(file_path)}")
+
+    if not os.path.exists(file_path):
+        return ("", 404)
+
+    response = send_file(
+        file_path,
+        mimetype="text/plain",
+        as_attachment=False,
+        conditional=False,   # important: evită 304 Not Modified silențios
+        etag=False,
+        last_modified=None
+    )
+
+    response.headers["Content-Disposition"] = f'inline; filename="{imdb_id}.srt"'
+    response.headers["Access-Control-Expose-Headers"] = "Content-Disposition, Content-Length, Content-Type"
+    response.headers["Cache-Control"] = "no-store"
+
+    print(f"[stremio_subtitle] responding, status={response.status_code}, "
+          f"content-length={response.headers.get('Content-Length')}")
+
+    return response
+    
+    
 @app.errorhandler(413)
 def file_too_large(e):
     return jsonify({"ok": False, "message": "Fișierul depășește dimensiunea maximă permisă (3MB)."}), 413
