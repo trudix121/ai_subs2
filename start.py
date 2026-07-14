@@ -14,4 +14,4 @@ SERVER RUNNING ON PORT {os.getenv('PORT')}
 {'='*30}
           
           """)
-    serve(app, host=os.getenv('HOST_NAME'), port=os.getenv('PORT'))
+    serve(app, port=os.getenv('PORT'))
