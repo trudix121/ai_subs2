@@ -13,12 +13,12 @@ load_dotenv()
 
 try:
     import chardet
-except ImportError:  # fallback minimal dacă pachetul nu e instalat
+except ImportError:
     chardet = None
 
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3MB — limită hard la nivel Flask, înainte de orice citire
+app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024 
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options={'timeout': 60 * 60 * 1000})
 
@@ -68,13 +68,14 @@ config = types.GenerateContentConfig(
 
 MAX_INPUT_TOKENS = 5000
 MAX_RETRIES = 5
-RETRY_DELAY = 5  # secunde
+RETRY_DELAY = 5  
 
 CHARS_PER_TOKEN = 3.2
 SAFETY_MARGIN = 0.85
 EFFECTIVE_MAX_TOKENS = int(MAX_INPUT_TOKENS * SAFETY_MARGIN)
 
-# --- validare upload -------------------------------------------------------
+
+
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2MB
 MIN_SUBTITLE_BLOCKS = 3
 MIN_VALID_BLOCK_RATIO = 0.8
@@ -91,13 +92,13 @@ os.makedirs(cache_dir, exist_ok=True)
 
 
 class SubtitleValidationError(Exception):
-    """Ridicată când fișierul încărcat de utilizator nu trece validarea."""
     pass
 
 
 
 
 logging.basicConfig(
+    filename='logs.log',
     level=logging.INFO,
     format="%(asctime)s | %(message)s"
 )
@@ -130,23 +131,13 @@ def log_request_end(response):
     return response
 
 
-# ---------------------------------------------------------------------------
-# Coordonare joburi: evită traduceri duplicate pentru același job_id și
-# expune un status "live" pe care frontend-ul îl poate interoga.
-#
-# job_id poate fi:
-#   - un IMDb ID (ex: "tt1234567"), pentru fluxul de căutare online
-#   - un hash "up_<sha256>" al conținutului, pentru fluxul de upload manual
-# ---------------------------------------------------------------------------
 _locks_guard = threading.Lock()
-_id_locks = {}          # job_id -> threading.Lock, unul per titlu/upload
-_job_status = {}         # job_id -> dict cu stage / progres
+_id_locks = {}          
+_job_status = {}        
 _status_guard = threading.Lock()
 
 
 def get_lock_for(job_id):
-    """Returnează (creând-o dacă lipsește) o încuietoare dedicată unui job_id,
-    ca să nu pornim două traduceri simultane pentru același conținut."""
     with _locks_guard:
         if job_id not in _id_locks:
             _id_locks[job_id] = threading.Lock()
@@ -172,11 +163,6 @@ def get_status(job_id):
 
 
 def estimate_tokens(text: str) -> int:
-    """
-    Estimare rapidă a numărului de tokeni, fără apel API.
-    Nu e exactă, dar e suficient de bună pentru decizia de splitting
-    și nu consumă CPU/rețea suplimentar.
-    """
     if not text:
         return 0
     return max(1, int(len(text) / CHARS_PER_TOKEN))
@@ -237,7 +223,7 @@ def split_by_tokens(content):
                     contents=chunk
                 ).total_tokens
 
-                print(f"Chunk {i}: ~{estimate_tokens(chunk)} estimated / {tokens} real tokens")
+                print(f"Chunk {i}: ~{estimate_tokens(chunk)} estimated / {tokens} real tokens ")
 
             except Exception as e:
                 print(f"Failed to count tokens for chunk {i}: {e}")
@@ -249,12 +235,7 @@ def split_by_tokens(content):
         raise
 
 
-# ---------------------------------------------------------------------------
-# Validare fișiere încărcate manual de utilizator
-# ---------------------------------------------------------------------------
 def decode_upload(raw_bytes: bytes) -> str:
-    """Decodează bytes brut într-un string text, încercând să detecteze
-    encoding-ul real al fișierului (multe .srt sunt salvate în cp1250/latin-1)."""
     if not raw_bytes:
         raise SubtitleValidationError("Fișierul este gol.")
 
@@ -281,9 +262,6 @@ def decode_upload(raw_bytes: bytes) -> str:
 
 
 def validate_srt_structure(content: str) -> str:
-    """Verifică rapid, fără AI, că fișierul chiar arată ca un .srt valid:
-    numerotare, timestamp-uri în formatul corect, text asociat.
-    Blochează fișiere goale, corupte, sau texte arbitrare deghizate în .srt."""
     content = content.replace("\r\n", "\n").strip()
 
     if not content:
@@ -312,15 +290,11 @@ def validate_srt_structure(content: str) -> str:
 
 
 def compute_job_id(content: str) -> str:
-    """ID de job derivat din conținut (hash), pentru deduplicare și cache:
-    dacă doi utilizatori încarcă exact același fișier, îl traducem o singură dată."""
     digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:24]
     return f"up_{digest}"
 
 
-# ---------------------------------------------------------------------------
-# Traducere (comună pentru fluxul IMDb și fluxul de upload)
-# ---------------------------------------------------------------------------
+
 def translate_and_save(file_content, job_id):
     print(f"GENERATING SUBS FOR {job_id}")
 
@@ -337,7 +311,7 @@ def translate_and_save(file_content, job_id):
     )
 
     for i, chunk in enumerate(chunks, start=1):
-        print(f"Chunk {i}/{len(chunks)}")
+        print(f"Chunk {i}/{len(chunks)} (Job ID: {job_id})")
         set_status(job_id, current_chunk=i)
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -355,7 +329,7 @@ def translate_and_save(file_content, job_id):
                 break
 
             except Exception as e:
-                print(f"[Chunk {i}] Attempt {attempt}/{MAX_RETRIES} failed: {e}")
+                print(f"[Chunk {i}] Attempt {attempt}/{MAX_RETRIES} failed: {e}  (Job ID: {job_id}) ")
                 set_status(
                     job_id,
                     message=f"Reîncercare pentru bucata {i}/{len(chunks)} (încercarea {attempt}/{MAX_RETRIES})…"
@@ -383,8 +357,6 @@ def translate_and_save(file_content, job_id):
 
 
 def get_subs_from_imdb(imdb_id):
-    """Fluxul original: caută subtitrarea în engleză online, o descarcă,
-    apoi o trimite la traducere."""
     print("========================================")
     print(f"Searching subtitles for {imdb_id}")
 
@@ -435,7 +407,7 @@ def get_subs_from_imdb(imdb_id):
 
 
 # ---------------------------------------------------------------------------
-# Rute
+# Routes
 # ---------------------------------------------------------------------------
 @app.route('/', methods=['GET'])
 def home():
@@ -447,8 +419,7 @@ def get_title(title_id):
     """Flux original — căutare + traducere sincronă după IMDb ID."""
     file_path = os.path.join(subs_dir, f"{title_id}.srt")
 
-    # Cazul rapid: fișierul există deja (cache permanent) — servim direct,
-    # fără să atingem lock-ul sau API-ul Gemini.
+
     if os.path.exists(file_path):
         return send_file(
             file_path,
@@ -459,14 +430,12 @@ def get_title(title_id):
 
     lock = get_lock_for(title_id)
 
-    # Încercăm să prindem lock-ul fără să blocăm. Dacă altcineva îl ține deja,
-    # înseamnă că exact acest titlu se traduce chiar acum — nu mai pornim
-    # o a doua traducere, ci așteptăm să se termine prima.
+
     acquired = lock.acquire(blocking=False)
 
     if not acquired:
         set_status(title_id, message=get_status(title_id).get("message", "Traducere deja în curs…"))
-        lock.acquire()  # blocăm până se eliberează (adică până termină celălalt request)
+        lock.acquire()
         lock.release()
 
         if os.path.exists(file_path):
@@ -509,8 +478,6 @@ def get_title(title_id):
 
 @app.route('/api/titles/<string:title_id>/status')
 def get_title_status(title_id):
-    """Endpoint optional pentru progres real (folosit de frontend prin polling,
-    în loc de un timer aproximativ)."""
     file_path = os.path.join(subs_dir, f"{title_id}.srt")
 
     if os.path.exists(file_path):
@@ -526,12 +493,6 @@ def get_title_status(title_id):
 
 @app.route('/api/upload', methods=['POST'])
 def upload_subtitle():
-    """Flux nou — utilizatorul încarcă manual un .srt.
-
-    Trece prin validare (encoding + structură) ÎNAINTE de a ajunge la Gemini,
-    apoi pornește traducerea asincron (thread separat) și returnează imediat
-    un job_id pe care frontend-ul îl folosește pentru polling și download.
-    """
     if 'file' not in request.files:
         return jsonify({"ok": False, "message": "Niciun fișier trimis."}), 400
 
@@ -554,8 +515,6 @@ def upload_subtitle():
     job_id = compute_job_id(text)
     file_path = os.path.join(subs_dir, f"{job_id}.srt")
 
-    # Deja tradus anterior (cineva a mai încărcat exact același conținut) —
-    # nu mai apelăm Gemini încă o dată.
     if os.path.exists(file_path):
         return jsonify({"ok": True, "job_id": job_id, "cached": True})
 
@@ -563,8 +522,6 @@ def upload_subtitle():
     acquired = lock.acquire(blocking=False)
 
     if not acquired:
-        # E deja o traducere în curs pentru exact acest conținut —
-        # frontend-ul va face polling pe status cu același job_id.
         return jsonify({"ok": True, "job_id": job_id, "already_running": True})
 
     set_status(job_id, stage="queued", message="Fișierul a trecut de verificare, se pregătește traducerea…")
@@ -585,8 +542,6 @@ def upload_subtitle():
 
 @app.route('/api/jobs/<string:job_id>/status')
 def job_status(job_id):
-    """Status generic — folosit atât pentru joburi de upload, cât și,
-    dacă vrei, ca alias pentru joburi IMDb (job_id = imdb_id)."""
     file_path = os.path.join(subs_dir, f"{job_id}.srt")
 
     if os.path.exists(file_path):
@@ -722,7 +677,7 @@ def stremio_subtitle(imdb_id):
         file_path,
         mimetype="text/plain",
         as_attachment=False,
-        conditional=False,   # important: evită 304 Not Modified silențios
+        conditional=False, 
         etag=False,
         last_modified=None
     )

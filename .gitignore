@@ -6,3 +6,4 @@ subs
 .env
 __pycache__
 pyvenv.cfg
+logs.log
