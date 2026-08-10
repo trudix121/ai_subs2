@@ -7,3 +7,4 @@ subs
 __pycache__
 pyvenv.cfg
 logs.log
+chunks.log
