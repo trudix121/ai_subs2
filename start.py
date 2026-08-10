@@ -5,7 +5,6 @@ import os
 load_dotenv()
 
 if __name__ == '__main__':
-    serve(app, host=os.getenv('HOST_NAME'), port=os.getenv('PORT'))
     print(f"""
 {'='*30}
 AI SUBS V2
@@ -15,4 +14,5 @@ SERVER RUNNING ON PORT {os.getenv('PORT')}
 {'='*30}
           
           """)
+    serve(app, host=os.getenv('HOST_NAME'), port=os.getenv('PORT'))
     

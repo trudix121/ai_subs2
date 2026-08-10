@@ -1,14 +1,16 @@
-from google import genai
-from dotenv import load_dotenv
-import os
-import requests
-from flask import Flask, request, jsonify, render_template, send_file
-from google.genai import types
-import re
-import time
-import threading
 import hashlib
 import logging
+import os
+import re
+import threading
+import time
+
+import requests
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request, send_file
+from google import genai
+from google.genai import types
+
 load_dotenv()
 
 try:
@@ -74,7 +76,7 @@ CHARS_PER_TOKEN = 3.2
 SAFETY_MARGIN = 0.85
 EFFECTIVE_MAX_TOKENS = int(MAX_INPUT_TOKENS * SAFETY_MARGIN)
 
-
+QUEUE_LIMIT = 5
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2MB
 MIN_SUBTITLE_BLOCKS = 3
@@ -161,6 +163,10 @@ def get_status(job_id):
     with _status_guard:
         return dict(_job_status.get(job_id, {}))
 
+def chunks_log(text):
+    with open('chunks.log', 'a+') as f:
+        f.write(f'{str(text)} \n')
+
 
 def estimate_tokens(text: str) -> int:
     if not text:
@@ -214,7 +220,7 @@ def split_by_tokens(content):
         if not chunks:
             raise ValueError("No chunks generated.")
 
-        print(f"Generated {len(chunks)} chunks")
+        chunks_log(f"Generated {len(chunks)} chunks")
 
         for i, chunk in enumerate(chunks, start=1):
             try:
@@ -223,15 +229,15 @@ def split_by_tokens(content):
                     contents=chunk
                 ).total_tokens
 
-                print(f"Chunk {i}: ~{estimate_tokens(chunk)} estimated / {tokens} real tokens ")
+                chunks_log(f"Chunk {i}: ~{estimate_tokens(chunk)} estimated / {tokens} real tokens ")
 
             except Exception as e:
-                print(f"Failed to count tokens for chunk {i}: {e}")
+                chunks_log(f"Failed to count tokens for chunk {i}: {e}")
 
         return chunks
 
     except Exception as e:
-        print(f"split_by_tokens failed: {e}")
+        chunks_log(f"split_by_tokens failed: {e}")
         raise
 
 
@@ -311,7 +317,7 @@ def translate_and_save(file_content, job_id):
     )
 
     for i, chunk in enumerate(chunks, start=1):
-        print(f"Chunk {i}/{len(chunks)} (Job ID: {job_id})")
+        chunks_log(f"Chunk {i}/{len(chunks)} (Job ID: {job_id})")
         set_status(job_id, current_chunk=i)
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -323,13 +329,13 @@ def translate_and_save(file_content, job_id):
                 )
 
                 candidate = response.candidates[0]
-                print(candidate.finish_reason)
+                chunks_log(candidate.finish_reason)
 
                 translated.append(response.text)
                 break
 
             except Exception as e:
-                print(f"[Chunk {i}] Attempt {attempt}/{MAX_RETRIES} failed: {e}  (Job ID: {job_id}) ")
+                chunks_log(f"[Chunk {i}] Attempt {attempt}/{MAX_RETRIES} failed: {e}  (Job ID: {job_id}) ")
                 set_status(
                     job_id,
                     message=f"Reîncercare pentru bucata {i}/{len(chunks)} (încercarea {attempt}/{MAX_RETRIES})…"
