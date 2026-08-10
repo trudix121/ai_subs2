@@ -650,7 +650,7 @@ def subtitles(content_type, video_id, extra_params=None):
         return jsonify({"subtitles": []})
 
     host = os.getenv("REDIRECT_HOST_NAME")
-    port = os.getenv("PORT")
+    port = os.getenv("STREMIO_PORT")
 
     base_url = f"https://{host}"
     if port:
