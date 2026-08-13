@@ -1,7 +1,5 @@
 cache
-Include
-Lib
-Scripts
+venv
 subs
 .env
 __pycache__
